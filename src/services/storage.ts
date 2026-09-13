@@ -1,6 +1,7 @@
 import {
   WidgetConfig,
   WidgetType,
+  WidgetSize,
   LayoutPreset,
   ThemePreset,
   Bookmark,
@@ -416,7 +417,7 @@ export const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'clock',
     title: 'Time & Greeting',
     size: '1x1',
-    enabled: false,
+    enabled: true,
     order: 0,
     settings: {
       showSeconds: false,
@@ -430,7 +431,7 @@ export const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'weather',
     title: 'Weather Forecast',
     size: '2x1',
-    enabled: false,
+    enabled: true,
     order: 1,
     settings: {
       city: 'San Francisco',
@@ -442,12 +443,44 @@ export const DEFAULT_WIDGETS: WidgetConfig[] = [
     },
   },
   {
+    id: 'widget-notes',
+    type: 'notes',
+    title: 'Quick Notes',
+    size: '1x2',
+    enabled: true,
+    order: 2,
+    settings: {},
+  },
+  {
+    id: 'widget-tasks',
+    type: 'tasks',
+    title: 'Daily Tasks',
+    size: '1x2',
+    enabled: true,
+    order: 3,
+    settings: {},
+  },
+  {
+    id: 'widget-bookmarks',
+    type: 'bookmarks',
+    title: 'Bookmarks',
+    size: 'full',
+    enabled: true,
+    order: 4,
+    settings: {
+      viewMode: 'grid',
+      showThumbnails: true,
+      defaultCategory: 'cat-all',
+      itemsPerRow: 4,
+    },
+  },
+  {
     id: 'widget-calendar',
     type: 'calendar',
     title: 'Calendar & Events',
     size: '2x2',
-    enabled: false,
-    order: 2,
+    enabled: true,
+    order: 5,
     settings: {
       view: 'month',
       showUpcoming: true,
@@ -459,8 +492,8 @@ export const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'rss',
     title: 'News Feeds',
     size: '2x2',
-    enabled: false,
-    order: 3,
+    enabled: true,
+    order: 6,
     settings: {
       activeFeedId: '',
       autoRefresh: 30,
@@ -472,7 +505,7 @@ export const DEFAULT_WIDGETS: WidgetConfig[] = [
     title: 'Image Gallery',
     size: '3x1',
     enabled: false,
-    order: 4,
+    order: 7,
     settings: {
       cycleInterval: 6,
       isAutoPlay: true,
@@ -483,38 +516,6 @@ export const DEFAULT_WIDGETS: WidgetConfig[] = [
       showControls: true,
       showThumbnailsBar: false,
     },
-  },
-  {
-    id: 'widget-bookmarks',
-    type: 'bookmarks',
-    title: 'Bookmarks',
-    size: 'full',
-    enabled: false,
-    order: 5,
-    settings: {
-      viewMode: 'grid',
-      showThumbnails: true,
-      defaultCategory: 'cat-all',
-      itemsPerRow: 4,
-    },
-  },
-  {
-    id: 'widget-notes',
-    type: 'notes',
-    title: 'Quick Notes',
-    size: '1x2',
-    enabled: false,
-    order: 6,
-    settings: {},
-  },
-  {
-    id: 'widget-tasks',
-    type: 'tasks',
-    title: 'Daily Tasks',
-    size: '1x2',
-    enabled: false,
-    order: 7,
-    settings: {},
   },
   {
     id: 'widget-video',
@@ -700,7 +701,80 @@ export const DEFAULT_GALLERY_SETTINGS: GallerySettings = {
   showThumbnailsBar: false,
 };
 
-export const DEFAULT_LAYOUT_PRESETS: LayoutPreset[] = [];
+export const DEFAULT_LAYOUT_PRESETS: LayoutPreset[] = [
+  {
+    id: 'preset-daily',
+    name: 'Daily Essentials',
+    description: 'Clean daily dashboard: Clock, Weather, Notes, Tasks & Bookmarks.',
+    createdAt: 1700000000000,
+    isBuiltIn: true,
+    widgets: [
+      { id: 'widget-clock', type: 'clock', title: 'Time & Greeting', size: '1x1', enabled: true, order: 0 },
+      { id: 'widget-weather', type: 'weather', title: 'Weather Forecast', size: '2x1', enabled: true, order: 1 },
+      { id: 'widget-notes', type: 'notes', title: 'Quick Notes', size: '1x2', enabled: true, order: 2 },
+      { id: 'widget-tasks', type: 'tasks', title: 'Daily Tasks', size: '1x2', enabled: true, order: 3 },
+      { id: 'widget-bookmarks', type: 'bookmarks', title: 'Bookmarks', size: 'full', enabled: true, order: 4 },
+      { id: 'widget-calendar', type: 'calendar', title: 'Calendar & Events', size: '2x2', enabled: true, order: 5 },
+      { id: 'widget-rss', type: 'rss', title: 'News Feeds', size: '2x2', enabled: true, order: 6 },
+      { id: 'widget-gallery', type: 'gallery', title: 'Image Gallery', size: '3x1', enabled: false, order: 7 },
+      { id: 'widget-video', type: 'video', title: 'Video Player', size: '2x2', enabled: false, order: 8 },
+    ],
+  },
+  {
+    id: 'preset-productivity',
+    name: 'Deep Focus & Tasks',
+    description: 'Productivity suite with tasks, notes scratchpad, and calendar agenda.',
+    createdAt: 1700000000000,
+    isBuiltIn: true,
+    widgets: [
+      { id: 'widget-clock', type: 'clock', title: 'Time & Greeting', size: '1x1', enabled: true, order: 0 },
+      { id: 'widget-weather', type: 'weather', title: 'Weather Forecast', size: '2x1', enabled: true, order: 1 },
+      { id: 'widget-tasks', type: 'tasks', title: 'Daily Tasks', size: '1x2', enabled: true, order: 2 },
+      { id: 'widget-notes', type: 'notes', title: 'Quick Notes', size: '1x2', enabled: true, order: 3 },
+      { id: 'widget-calendar', type: 'calendar', title: 'Calendar & Events', size: '2x2', enabled: true, order: 4 },
+      { id: 'widget-bookmarks', type: 'bookmarks', title: 'Bookmarks', size: 'full', enabled: true, order: 5 },
+      { id: 'widget-rss', type: 'rss', title: 'News Feeds', size: '2x2', enabled: false, order: 6 },
+      { id: 'widget-gallery', type: 'gallery', title: 'Image Gallery', size: '3x1', enabled: false, order: 7 },
+      { id: 'widget-video', type: 'video', title: 'Video Player', size: '2x2', enabled: false, order: 8 },
+    ],
+  },
+  {
+    id: 'preset-minimal',
+    name: 'Minimal Canvas',
+    description: 'Ultra-clean view with time, weather, and your bookmark launchpad.',
+    createdAt: 1700000000000,
+    isBuiltIn: true,
+    widgets: [
+      { id: 'widget-clock', type: 'clock', title: 'Time & Greeting', size: '1x1', enabled: true, order: 0 },
+      { id: 'widget-weather', type: 'weather', title: 'Weather Forecast', size: '2x1', enabled: true, order: 1 },
+      { id: 'widget-bookmarks', type: 'bookmarks', title: 'Bookmarks', size: 'full', enabled: true, order: 2 },
+      { id: 'widget-notes', type: 'notes', title: 'Quick Notes', size: '1x2', enabled: false, order: 3 },
+      { id: 'widget-tasks', type: 'tasks', title: 'Daily Tasks', size: '1x2', enabled: false, order: 4 },
+      { id: 'widget-calendar', type: 'calendar', title: 'Calendar & Events', size: '2x2', enabled: false, order: 5 },
+      { id: 'widget-rss', type: 'rss', title: 'News Feeds', size: '2x2', enabled: false, order: 6 },
+      { id: 'widget-gallery', type: 'gallery', title: 'Image Gallery', size: '3x1', enabled: false, order: 7 },
+      { id: 'widget-video', type: 'video', title: 'Video Player', size: '2x2', enabled: false, order: 8 },
+    ],
+  },
+  {
+    id: 'preset-media',
+    name: 'Media & News Hub',
+    description: 'Ambient video, wallpapers gallery, and live RSS news aggregator.',
+    createdAt: 1700000000000,
+    isBuiltIn: true,
+    widgets: [
+      { id: 'widget-clock', type: 'clock', title: 'Time & Greeting', size: '1x1', enabled: true, order: 0 },
+      { id: 'widget-weather', type: 'weather', title: 'Weather Forecast', size: '2x1', enabled: true, order: 1 },
+      { id: 'widget-video', type: 'video', title: 'Video Player', size: '2x2', enabled: true, order: 2 },
+      { id: 'widget-rss', type: 'rss', title: 'News Feeds', size: '2x2', enabled: true, order: 3 },
+      { id: 'widget-gallery', type: 'gallery', title: 'Image Gallery', size: '3x1', enabled: true, order: 4 },
+      { id: 'widget-bookmarks', type: 'bookmarks', title: 'Bookmarks', size: 'full', enabled: true, order: 5 },
+      { id: 'widget-notes', type: 'notes', title: 'Quick Notes', size: '1x2', enabled: false, order: 6 },
+      { id: 'widget-tasks', type: 'tasks', title: 'Daily Tasks', size: '1x2', enabled: false, order: 7 },
+      { id: 'widget-calendar', type: 'calendar', title: 'Calendar & Events', size: '2x2', enabled: false, order: 8 },
+    ],
+  },
+];
 
 export const DEFAULT_WORKSPACE_PROJECT: WritingProject = {
   id: 'proj-default-workspace',
@@ -807,12 +881,29 @@ export const storage = {
     }
   },
 
+  getDefaultWidgets(): WidgetConfig[] {
+    return JSON.parse(JSON.stringify(DEFAULT_WIDGETS));
+  },
+
   getWidgets(): WidgetConfig[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.WIDGETS);
-      if (!data) return DEFAULT_WIDGETS;
+      if (!data) {
+        const defaults = this.getDefaultWidgets();
+        try {
+          localStorage.setItem(STORAGE_KEYS.WIDGETS, JSON.stringify(defaults));
+        } catch {}
+        return defaults;
+      }
+
       const parsed: WidgetConfig[] = JSON.parse(data);
-      if (!Array.isArray(parsed)) return DEFAULT_WIDGETS;
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        const defaults = this.getDefaultWidgets();
+        try {
+          localStorage.setItem(STORAGE_KEYS.WIDGETS, JSON.stringify(defaults));
+        } catch {}
+        return defaults;
+      }
 
       const validTypes = new Set<WidgetType>([
         'clock',
@@ -826,7 +917,20 @@ export const storage = {
         'video',
       ]);
 
-      // Strictly filter out any invalid/legacy widgets (character showcase, character banner, banner, music, etc.)
+      const validSizes = new Set<WidgetSize>([
+        '1x1',
+        '2x1',
+        '1x2',
+        '2x2',
+        '3x1',
+        '3x2',
+        'portrait',
+        'poster',
+        'shorts',
+        'full',
+      ]);
+
+      // Strictly filter out any invalid/legacy widgets
       const filtered = parsed.filter(
         (w) =>
           w &&
@@ -834,41 +938,97 @@ export const storage = {
           validTypes.has(w.type as WidgetType) &&
           !String(w.type).toLowerCase().includes('character') &&
           !String(w.type).toLowerCase().includes('showcase') &&
-          !String(w.type).toLowerCase().includes('banner') &&
           !String(w.id).toLowerCase().includes('character') &&
           !String(w.id).toLowerCase().includes('showcase') &&
-          !String(w.id).toLowerCase().includes('banner') &&
           w.id !== 'widget-music'
       );
 
-      const existingTypes = new Set(filtered.map((w) => w.type));
-      const missing = DEFAULT_WIDGETS.filter((w) => !existingTypes.has(w.type));
-      const result = [...filtered, ...missing].map((w) => {
-        if (w.id === 'widget-gallery' && (w.title === 'Photo Banner Gallery' || !w.title)) {
-          return { ...w, title: 'Image Gallery' };
+      // Preserve existing widgets in their existing order, and append any missing default types
+      const result: WidgetConfig[] = [];
+      const presentTypes = new Set<WidgetType>();
+
+      for (let i = 0; i < filtered.length; i++) {
+        const w = filtered[i];
+        if (presentTypes.has(w.type as WidgetType)) continue;
+        presentTypes.add(w.type as WidgetType);
+
+        const def = DEFAULT_WIDGETS.find((d) => d.type === w.type) || {
+          id: w.id,
+          type: w.type,
+          title: w.title || 'Widget',
+          size: w.size || '1x1',
+          enabled: true,
+          order: i,
+          settings: {},
+        };
+
+        let title = w.title || def.title;
+        if (w.id === 'widget-gallery' && title === 'Photo Banner Gallery') {
+          title = 'Image Gallery';
         }
-        if (w.id === 'widget-video' && (w.title === 'Ambient Video & YouTube' || !w.title)) {
-          return { ...w, title: 'Video Player' };
+        if (w.id === 'widget-video' && title === 'Ambient Video & YouTube') {
+          title = 'Video Player';
         }
         if (
           w.id === 'widget-bookmarks' &&
-          (w.title === 'Quick Bookmarks' || w.title === 'Visual Bookmark Hub' || !w.title)
+          (title === 'Quick Bookmarks' || title === 'Visual Bookmark Hub')
         ) {
-          return { ...w, title: 'Bookmarks' };
+          title = 'Bookmarks';
         }
-        return w;
-      });
 
-      // Persist the clean state back to localStorage immediately
+        let settings = { ...(def.settings || {}), ...(w.settings || {}) };
+        if (w.type === 'gallery') {
+          const standaloneGal = this.getGallerySettings();
+          settings = { ...settings, ...standaloneGal, ...(w.settings || {}) };
+        }
+
+        const validSize: WidgetSize = validSizes.has(w.size) ? w.size : def.size;
+        const validOrder = typeof w.order === 'number' && !isNaN(w.order) ? w.order : i;
+
+        result.push({
+          ...def,
+          ...w,
+          title,
+          size: validSize,
+          order: validOrder,
+          enabled: typeof w.enabled === 'boolean' ? w.enabled : def.enabled,
+          settings,
+        });
+      }
+
+      // Append any default widgets that weren't present in stored widgets
+      let maxOrder = result.length > 0 ? Math.max(...result.map((r) => r.order ?? 0)) + 1 : 0;
+      for (const def of DEFAULT_WIDGETS) {
+        if (!presentTypes.has(def.type)) {
+          let settings = { ...(def.settings || {}) };
+          if (def.type === 'gallery') {
+            const standaloneGal = this.getGallerySettings();
+            settings = { ...settings, ...standaloneGal };
+          }
+          result.push({
+            ...def,
+            order: maxOrder++,
+            settings,
+          });
+          presentTypes.add(def.type);
+        }
+      }
+
+      // Ensure stable contiguous ordering
+      result.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const normalized = result.map((w, idx) => ({ ...w, order: idx }));
+
+      // Persist the clean normalized state back to localStorage
       try {
-        localStorage.setItem(STORAGE_KEYS.WIDGETS, JSON.stringify(result));
+        localStorage.setItem(STORAGE_KEYS.WIDGETS, JSON.stringify(normalized));
       } catch {}
 
-      return result;
+      return normalized;
     } catch {
-      return DEFAULT_WIDGETS;
+      return this.getDefaultWidgets();
     }
   },
+
   saveWidgets(widgets: WidgetConfig[]): void {
     try {
       const validTypes = new Set<WidgetType>([
@@ -882,18 +1042,44 @@ export const storage = {
         'gallery',
         'video',
       ]);
-      const clean = (widgets || []).filter(
-        (w) =>
-          w &&
-          validTypes.has(w.type) &&
-          !String(w.type).toLowerCase().includes('character') &&
-          !String(w.type).toLowerCase().includes('showcase') &&
-          !String(w.type).toLowerCase().includes('banner') &&
-          !String(w.id).toLowerCase().includes('character') &&
-          !String(w.id).toLowerCase().includes('showcase') &&
-          !String(w.id).toLowerCase().includes('banner')
-      );
+      const validSizes = new Set<WidgetSize>([
+        '1x1',
+        '2x1',
+        '1x2',
+        '2x2',
+        '3x1',
+        '3x2',
+        'portrait',
+        'poster',
+        'shorts',
+        'full',
+      ]);
+      const clean = (widgets || [])
+        .filter(
+          (w) =>
+            w &&
+            validTypes.has(w.type) &&
+            !String(w.type).toLowerCase().includes('character') &&
+            !String(w.type).toLowerCase().includes('showcase') &&
+            !String(w.id).toLowerCase().includes('character') &&
+            !String(w.id).toLowerCase().includes('showcase') &&
+            w.id !== 'widget-music'
+        )
+        .map((w, i) => ({
+          ...w,
+          size: validSizes.has(w.size) ? w.size : '1x1',
+          order: typeof w.order === 'number' && !isNaN(w.order) ? w.order : i,
+        }));
       localStorage.setItem(STORAGE_KEYS.WIDGETS, JSON.stringify(clean));
+
+      // Also persist gallery settings independently if gallery is present
+      const galleryWidget = clean.find((w) => w.type === 'gallery' || w.id === 'widget-gallery');
+      if (galleryWidget && galleryWidget.settings) {
+        try {
+          const cur = this.getGallerySettings();
+          this.saveGallerySettings({ ...cur, ...galleryWidget.settings });
+        } catch {}
+      }
     } catch (e) {
       console.warn('Storage save failed', e);
     }

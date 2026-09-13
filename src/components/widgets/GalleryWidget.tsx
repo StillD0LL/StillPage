@@ -108,7 +108,12 @@ export const GalleryWidget: React.FC<GalleryWidgetProps> = ({
 
   // Synchronize autoPlay state when prop changes
   useEffect(() => {
-    setIsAutoPlay(settings.isAutoPlay);
+    if (typeof settings.isAutoPlay === 'boolean') {
+      setIsAutoPlay(settings.isAutoPlay);
+      if (!settings.isAutoPlay) {
+        setCycleProgress(0);
+      }
+    }
   }, [settings.isAutoPlay]);
 
   // Cycling Engine with progress bar
@@ -149,12 +154,12 @@ export const GalleryWidget: React.FC<GalleryWidgetProps> = ({
     setCycleProgress(0);
   };
 
-  const toggleAutoPlay = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const next = !isAutoPlay;
-    setIsAutoPlay(next);
-    onUpdateSettings?.({ isAutoPlay: next });
-    setCycleProgress(0);
+  const handleSetAutoPlay = (enabled: boolean) => {
+    setIsAutoPlay(enabled);
+    if (!enabled) {
+      setCycleProgress(0);
+    }
+    onUpdateSettings?.({ isAutoPlay: enabled });
   };
 
   // Direct File Selection from Local Disk
@@ -458,7 +463,11 @@ export const GalleryWidget: React.FC<GalleryWidgetProps> = ({
                   {images.length > 1 && (
                     <button
                       type="button"
-                      onClick={toggleAutoPlay}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSetAutoPlay(!isAutoPlay);
+                      }}
                       className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                         isAutoPlay
                           ? 'text-emerald-400 hover:bg-white/10'
@@ -1145,13 +1154,13 @@ export const GalleryWidget: React.FC<GalleryWidgetProps> = ({
               {/* Toggles */}
               <div className="space-y-2.5 pt-2 border-t border-zinc-800">
                 {/* Auto Play Toggle */}
-                <label className="flex items-center justify-between text-xs text-zinc-300 cursor-pointer">
+                <label className="flex items-center justify-between text-xs text-zinc-300 cursor-pointer select-none">
                   <span>Auto-cycle images automatically</span>
                   <input
                     type="checkbox"
                     checked={isAutoPlay}
-                    onChange={(e) => toggleAutoPlay()}
-                    className="w-4 h-4 rounded text-indigo-600 bg-zinc-800 border-zinc-700 focus:ring-indigo-500"
+                    onChange={(e) => handleSetAutoPlay(e.target.checked)}
+                    className="w-4 h-4 rounded text-indigo-600 bg-zinc-800 border-zinc-700 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
 

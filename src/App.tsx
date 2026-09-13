@@ -121,10 +121,17 @@ export default function App() {
     storage.saveActivePage(page);
   };
 
-  const updateWidgets = (newWidgets: WidgetConfig[]) => {
-    setWidgets(newWidgets);
-    storage.saveWidgets(newWidgets);
-  };
+  const updateWidgets = useCallback(
+    (newWidgetsOrUpdater: WidgetConfig[] | ((prev: WidgetConfig[]) => WidgetConfig[])) => {
+      setWidgets((prev) => {
+        const next =
+          typeof newWidgetsOrUpdater === 'function' ? newWidgetsOrUpdater(prev) : newWidgetsOrUpdater;
+        storage.saveWidgets(next);
+        return next;
+      });
+    },
+    []
+  );
 
   const updateBookmarks = (newBookmarks: Bookmark[]) => {
     setBookmarks(newBookmarks);
@@ -199,89 +206,177 @@ export default function App() {
   };
 
   // Widget Actions
-  const handleResizeWidget = (id: string, size: WidgetSize) => {
-    const updated = widgets.map((w) => (w.id === id ? { ...w, size } : w));
-    updateWidgets(updated);
-  };
+  const handleResizeWidget = useCallback(
+    (id: string, size: WidgetSize) => {
+      updateWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, size } : w)));
+    },
+    [updateWidgets]
+  );
 
-  const handleToggleWidget = (id: string, enabled: boolean) => {
-    const updated = widgets.map((w) => (w.id === id ? { ...w, enabled } : w));
-    updateWidgets(updated);
-  };
+  const handleToggleWidget = useCallback(
+    (id: string, enabled: boolean) => {
+      updateWidgets((prev) => {
+        const updated = prev.map((w) => (w.id === id ? { ...w, enabled } : w));
+        // Normalize orders: active widgets 0..N, inactive after
+        const active = updated
+          .filter((w) => w.enabled)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((w, idx) => ({ ...w, order: idx }));
+        const activeIds = new Set(active.map((w) => w.id));
+        const inactive = updated
+          .filter((w) => !activeIds.has(w.id))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((w, idx) => ({ ...w, order: active.length + idx }));
 
-  const handleRemoveWidget = (id: string) => {
-    const updated = widgets.map((w) => (w.id === id ? { ...w, enabled: false } : w));
-    updateWidgets(updated);
-  };
+        return [...active, ...inactive];
+      });
+    },
+    [updateWidgets]
+  );
 
-  const handleUpdateWidgetSettings = (id: string, newSettings: any) => {
-    const updated = widgets.map((w) =>
-      w.id === id ? { ...w, settings: { ...w.settings, ...newSettings } } : w
-    );
-    updateWidgets(updated);
-  };
+  const handleRemoveWidget = useCallback(
+    (id: string) => {
+      handleToggleWidget(id, false);
+    },
+    [handleToggleWidget]
+  );
+
+  const handleUpdateWidgetSettings = useCallback(
+    (id: string, newSettings: any) => {
+      updateWidgets((prev) =>
+        prev.map((w) =>
+          w.id === id ? { ...w, settings: { ...(w.settings || {}), ...newSettings } } : w
+        )
+      );
+      if (id === 'widget-gallery') {
+        try {
+          const cur = storage.getGallerySettings();
+          storage.saveGallerySettings({ ...cur, ...newSettings });
+        } catch {}
+      }
+    },
+    [updateWidgets]
+  );
 
   // Widget Reordering Drag and Drop
   const handleWidgetDragStart = (e: React.DragEvent, id: string) => {
     setDraggedWidgetId(id);
+    e.dataTransfer.setData('application/x-widget-id', id);
     e.dataTransfer.setData('text/plain', id);
   };
 
-  const handleWidgetDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    if (!draggedWidgetId || draggedWidgetId === targetId) return;
+  const handleWidgetDrop = useCallback(
+    (e: React.DragEvent, targetId: string) => {
+      e.preventDefault();
+      const sourceId =
+        draggedWidgetId ||
+        e.dataTransfer.getData('application/x-widget-id') ||
+        e.dataTransfer.getData('text/plain');
 
-    const sourceIdx = widgets.findIndex((w) => w.id === draggedWidgetId);
-    const targetIdx = widgets.findIndex((w) => w.id === targetId);
-    if (sourceIdx === -1 || targetIdx === -1) return;
+      setDraggedWidgetId(null);
+      if (!sourceId || sourceId === targetId) return;
 
-    const updated = [...widgets];
-    const [moved] = updated.splice(sourceIdx, 1);
-    updated.splice(targetIdx, 0, moved);
+      updateWidgets((prev) => {
+        // Operate directly on the visible active widgets to ensure predictable reordering
+        const active = prev
+          .filter((w) => w && w.enabled)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-    const reordered = updated.map((w, i) => ({ ...w, order: i }));
-    updateWidgets(reordered);
-    setDraggedWidgetId(null);
-  };
+        const sourceIdx = active.findIndex((w) => w.id === sourceId);
+        const targetIdx = active.findIndex((w) => w.id === targetId);
+        if (sourceIdx === -1 || targetIdx === -1) return prev;
 
-  const handleMoveWidget = (id: string, direction: 'up' | 'down') => {
-    const idx = widgets.findIndex((w) => w.id === id);
-    if (idx === -1) return;
-    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (targetIdx < 0 || targetIdx >= widgets.length) return;
+        const updatedActive = [...active];
+        const [moved] = updatedActive.splice(sourceIdx, 1);
+        updatedActive.splice(targetIdx, 0, moved);
 
-    const updated = [...widgets];
-    const [moved] = updated.splice(idx, 1);
-    updated.splice(targetIdx, 0, moved);
+        const reorderedActive = updatedActive.map((w, i) => ({ ...w, order: i }));
+        const activeIds = new Set(reorderedActive.map((w) => w.id));
 
-    const reordered = updated.map((w, i) => ({ ...w, order: i }));
-    updateWidgets(reordered);
-  };
+        const inactive = prev
+          .filter((w) => !activeIds.has(w.id))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((w, i) => ({ ...w, order: reorderedActive.length + i }));
+
+        return [...reorderedActive, ...inactive];
+      });
+    },
+    [draggedWidgetId, updateWidgets]
+  );
+
+  const handleMoveWidget = useCallback(
+    (id: string, direction: 'up' | 'down') => {
+      updateWidgets((prev) => {
+        // Reorder relative to other visible/active widgets
+        const active = prev
+          .filter((w) => w && w.enabled)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        const activeIdx = active.findIndex((w) => w.id === id);
+        if (activeIdx === -1) return prev;
+        const targetIdx = direction === 'up' ? activeIdx - 1 : activeIdx + 1;
+        if (targetIdx < 0 || targetIdx >= active.length) return prev;
+
+        const updatedActive = [...active];
+        const [moved] = updatedActive.splice(activeIdx, 1);
+        updatedActive.splice(targetIdx, 0, moved);
+
+        const reorderedActive = updatedActive.map((w, i) => ({ ...w, order: i }));
+        const activeIds = new Set(reorderedActive.map((w) => w.id));
+
+        const inactive = prev
+          .filter((w) => !activeIds.has(w.id))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((w, i) => ({ ...w, order: reorderedActive.length + i }));
+
+        return [...reorderedActive, ...inactive];
+      });
+    },
+    [updateWidgets]
+  );
 
   // Layout Presets
-  const handleApplyLayoutPreset = (presetOrName: LayoutPreset | string) => {
-    if (typeof presetOrName === 'object' && presetOrName.widgets) {
-      updateWidgets(presetOrName.widgets);
-      showToast(`Applied layout preset: "${presetOrName.name}"`);
-      return;
-    }
+  const handleApplyLayoutPreset = useCallback(
+    (presetOrName: LayoutPreset | string) => {
+      let presetWidgets: WidgetConfig[] | null = null;
+      let presetName = '';
+      if (typeof presetOrName === 'object' && presetOrName.widgets) {
+        presetWidgets = presetOrName.widgets;
+        presetName = presetOrName.name;
+      } else {
+        const presets = storage.getLayoutPresets();
+        const found = presets.find(
+          (p) => p.id === presetOrName || p.name.toLowerCase() === (presetOrName as string).toLowerCase()
+        );
+        if (found) {
+          presetWidgets = found.widgets;
+          presetName = found.name;
+        }
+      }
 
-    const presets = storage.getLayoutPresets();
-    const found = presets.find(
-      (p) => p.id === presetOrName || p.name.toLowerCase() === (presetOrName as string).toLowerCase()
-    );
-    if (found) {
-      updateWidgets(found.widgets);
-      showToast(`Applied layout preset: "${found.name}"`);
-    }
-  };
+      if (presetWidgets) {
+        updateWidgets((prev) => {
+          const prevMap = new Map(prev.map((w) => [w.id, w]));
+          return presetWidgets!.map((pw) => {
+            const existing = prevMap.get(pw.id);
+            return {
+              ...pw,
+              settings: { ...(existing?.settings || {}), ...(pw.settings || {}) },
+            };
+          });
+        });
+        showToast(`Applied layout preset: "${presetName}"`);
+      }
+    },
+    [updateWidgets]
+  );
 
-  const handleResetLayout = () => {
-    storage.resetToDefaults();
-    handleDataReload();
-    showToast('Reset dashboard to factory default layout');
+  const handleResetLayout = useCallback(() => {
+    const defaults = storage.getDefaultWidgets();
+    updateWidgets(defaults);
+    showToast('Reset dashboard widgets to default layout');
     setIsWidgetModalOpen(false);
-  };
+  }, [updateWidgets]);
 
   // Bookmarks CRUD
   const handleSaveBookmark = (bmData: Omit<Bookmark, 'id' | 'createdAt'>, existingId?: string) => {
@@ -399,12 +494,11 @@ export default function App() {
         w.enabled &&
         !String(w.type).toLowerCase().includes('character') &&
         !String(w.type).toLowerCase().includes('showcase') &&
-        !String(w.type).toLowerCase().includes('banner') &&
         !String(w.id).toLowerCase().includes('character') &&
         !String(w.id).toLowerCase().includes('showcase') &&
-        !String(w.id).toLowerCase().includes('banner')
+        w.id !== 'widget-music'
     )
-    .sort((a, b) => a.order - b.order);
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   // Background styling computation
   const getBackgroundStyle = () => {
@@ -719,6 +813,7 @@ export default function App() {
                     onMoveUp={(id) => handleMoveWidget(id, 'up')}
                     onMoveDown={(id) => handleMoveWidget(id, 'down')}
                     onDragStart={handleWidgetDragStart}
+                    onDragEnd={() => setDraggedWidgetId(null)}
                     onDrop={handleWidgetDrop}
                   >
                     {renderWidgetContent(widget)}

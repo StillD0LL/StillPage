@@ -193,17 +193,18 @@ export const WidgetCustomizerModal: React.FC<WidgetCustomizerModalProps> = ({
     }
   };
 
-  const validWidgets = widgets.filter(
-    (w) =>
-      w &&
-      WIDGET_METADATA[w.type] &&
-      !String(w.type).toLowerCase().includes('character') &&
-      !String(w.type).toLowerCase().includes('showcase') &&
-      !String(w.type).toLowerCase().includes('banner') &&
-      !String(w.id).toLowerCase().includes('character') &&
-      !String(w.id).toLowerCase().includes('showcase') &&
-      !String(w.id).toLowerCase().includes('banner')
-  );
+  const validWidgets = widgets
+    .filter(
+      (w) =>
+        w &&
+        WIDGET_METADATA[w.type] &&
+        !String(w.type).toLowerCase().includes('character') &&
+        !String(w.type).toLowerCase().includes('showcase') &&
+        !String(w.id).toLowerCase().includes('character') &&
+        !String(w.id).toLowerCase().includes('showcase') &&
+        w.id !== 'widget-music'
+    )
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const activeWidgetsCount = validWidgets.filter((w) => w.enabled).length;
 
   return (

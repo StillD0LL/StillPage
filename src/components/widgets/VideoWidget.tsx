@@ -143,6 +143,8 @@ export const VideoWidget: React.FC<VideoWidgetProps> = ({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const onUpdateSettingsRef = useRef(onUpdateSettings);
+  onUpdateSettingsRef.current = onUpdateSettings;
 
   // Load and resolve local video from IndexedDB whenever localMediaId or sourceType changes
   useEffect(() => {
@@ -192,8 +194,9 @@ export const VideoWidget: React.FC<VideoWidgetProps> = ({
             setResolvedLocalUrl(freshUrl);
             setHasLocalVideoError(false);
             setIsLoadingLocalVideo(false);
-            // Sync settings with recovered ID
-            onUpdateSettings({ localMediaId: matchingSaved.localMediaId, localVideoUrl: freshUrl });
+            if (localMediaId !== matchingSaved.localMediaId) {
+              onUpdateSettingsRef.current({ localMediaId: matchingSaved.localMediaId });
+            }
             return;
           }
         } catch (err) {
@@ -214,11 +217,12 @@ export const VideoWidget: React.FC<VideoWidgetProps> = ({
             setResolvedLocalUrl(freshUrl);
             setHasLocalVideoError(false);
             setIsLoadingLocalVideo(false);
-            onUpdateSettings({
-              localMediaId: matched.id,
-              localVideoName: matched.name,
-              localVideoUrl: freshUrl,
-            });
+            if (localMediaId !== matched.id) {
+              onUpdateSettingsRef.current({
+                localMediaId: matched.id,
+                localVideoName: matched.name,
+              });
+            }
             return;
           }
         }
@@ -249,7 +253,7 @@ export const VideoWidget: React.FC<VideoWidgetProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [sourceType, localMediaId, localVideoName, localVideoUrl, savedVideos, onUpdateSettings]);
+  }, [sourceType, localMediaId, localVideoName]);
 
   // Helper to extract YouTube video ID from various standard URL schemas (including Shorts)
   const getYouTubeEmbedUrl = (rawUrl: string): string | null => {
