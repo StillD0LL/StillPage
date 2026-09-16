@@ -22,6 +22,8 @@ interface SpaceDockProps {
   onClearCanvas: () => void;
   onLoadStarterCanvas: () => void;
   elementCount: number;
+  isAutoPlayMedia?: boolean;
+  onToggleAutoPlayMedia?: () => void;
 }
 
 interface DockToolItem {
@@ -76,6 +78,8 @@ export const SpaceDock: React.FC<SpaceDockProps> = ({
   onClearCanvas,
   onLoadStarterCanvas,
   elementCount,
+  isAutoPlayMedia = false,
+  onToggleAutoPlayMedia,
 }) => {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
@@ -145,6 +149,29 @@ export const SpaceDock: React.FC<SpaceDockProps> = ({
         >
           <Palette className="w-4 h-4 text-violet-400" />
         </button>
+
+        {/* Auto-play Media Toggle Button */}
+        {onToggleAutoPlayMedia && (
+          <button
+            type="button"
+            onClick={() => {
+              uiSound.playClick();
+              onToggleAutoPlayMedia();
+            }}
+            className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all hover:scale-105 cursor-pointer shadow-md ${
+              isAutoPlayMedia
+                ? 'bg-sky-500/25 text-sky-300 border-sky-500/40 hover:bg-sky-500/35'
+                : 'bg-zinc-900/90 text-zinc-400 border-white/10 hover:bg-zinc-800 hover:text-zinc-200'
+            }`}
+            title={
+              isAutoPlayMedia
+                ? 'Auto-play Media: ON (Click to disable automatic media playback)'
+                : 'Auto-play Media: OFF (Click to enable automatic media playback)'
+            }
+          >
+            <Film className="w-4 h-4 text-sky-400" />
+          </button>
+        )}
 
         {/* View Mode / Design Mode Toggle */}
         <button

@@ -13,6 +13,7 @@ import {
   VolumeX,
   Sparkles,
   Play,
+  Film,
 } from 'lucide-react';
 import { storage } from '../../services/storage';
 import { uiSound } from '../../services/uiSound';
@@ -32,8 +33,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
   const [soundSettings, setSoundSettings] = useState<UiSoundSettings>(() => uiSound.getSettings());
+  const [spaceAutoplay, setSpaceAutoplay] = useState<boolean>(() => storage.getSpaceAutoplayMedia());
 
   if (!isOpen) return null;
+
+  const handleToggleSpaceAutoplay = (enabled: boolean) => {
+    storage.saveSpaceAutoplayMedia(enabled);
+    setSpaceAutoplay(enabled);
+    uiSound.playClick(true);
+  };
 
   const handleToggleSound = (enabled: boolean) => {
     const updated = uiSound.updateSettings({ enabled });
@@ -219,6 +227,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Space Canvas Settings */}
+          <div>
+            <h3 className="font-bold text-zinc-200 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <Film className="w-4 h-4 text-sky-400" />
+              <span>Space Canvas Settings</span>
+            </h3>
+
+            <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-zinc-800/80 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-zinc-200 font-semibold text-xs flex items-center gap-1.5">
+                    <span>Auto-play Media Elements</span>
+                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                      Space
+                    </span>
+                  </div>
+                  <div className="text-zinc-400 text-[11px] mt-0.5 leading-relaxed">
+                    Automatically play video streams and ambient players when opening the Space creative canvas
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggleSpaceAutoplay(!spaceAutoplay)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    spaceAutoplay ? 'bg-sky-600' : 'bg-zinc-800'
+                  }`}
+                  role="switch"
+                  aria-checked={spaceAutoplay}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      spaceAutoplay ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
 

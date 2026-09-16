@@ -891,6 +891,7 @@ const STORAGE_KEYS = {
   SPACE_ELEMENTS: 'nexus_space_elements',
   SPACE_BACKGROUND: 'nexus_space_background',
   SPACE_MODE: 'nexus_space_mode',
+  SPACE_AUTOPLAY_MEDIA: 'nexus_space_autoplay_media',
 };
 
 export const storage = {
@@ -1801,11 +1802,32 @@ export const storage = {
     } catch {}
   },
 
+  getSpaceAutoplayMedia(): boolean {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SPACE_AUTOPLAY_MEDIA);
+      if (data !== null) {
+        return data === 'true';
+      }
+    } catch (e) {
+      console.warn('Storage read failed for space autoplay media', e);
+    }
+    return true; // Defaults to true so media elements auto-play smoothly
+  },
+
+  saveSpaceAutoplayMedia(enabled: boolean): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SPACE_AUTOPLAY_MEDIA, String(enabled));
+    } catch (e) {
+      console.warn('Storage save failed for space autoplay media', e);
+    }
+  },
+
   resetSpaceData(): void {
     try {
       localStorage.removeItem(STORAGE_KEYS.SPACE_ELEMENTS);
       localStorage.removeItem(STORAGE_KEYS.SPACE_BACKGROUND);
       localStorage.removeItem(STORAGE_KEYS.SPACE_MODE);
+      localStorage.removeItem(STORAGE_KEYS.SPACE_AUTOPLAY_MEDIA);
     } catch (e) {
       console.warn('Failed to reset space data', e);
     }

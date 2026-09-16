@@ -22,6 +22,8 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Play,
+  Film,
 } from 'lucide-react';
 import {
   SpaceElement,
@@ -55,6 +57,8 @@ interface SpacePropertiesPanelProps {
   onSendToBack: (id: string) => void;
   saveStatus: 'saved' | 'saving' | 'error';
   lastSavedAt: number | null;
+  globalAutoplay?: boolean;
+  onToggleGlobalAutoplay?: (enabled: boolean) => void;
 }
 
 export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
@@ -68,6 +72,8 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
   onSendToBack,
   saveStatus,
   lastSavedAt,
+  globalAutoplay = false,
+  onToggleGlobalAutoplay,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -704,6 +710,53 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
 
               {/* Toggles */}
               <div className="space-y-2 pt-1">
+                {/* Global Space Auto-play Status Card */}
+                <div className="p-2.5 rounded-xl bg-sky-950/30 border border-sky-800/40 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-medium text-sky-200 flex items-center gap-1.5">
+                      <Film className="w-3 h-3 text-sky-400" />
+                      Space Canvas Auto-play
+                    </span>
+                    {onToggleGlobalAutoplay && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          uiSound.playClick();
+                          onToggleGlobalAutoplay(!globalAutoplay);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                          globalAutoplay
+                            ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30'
+                            : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {globalAutoplay ? 'ON' : 'OFF'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 leading-tight">
+                    {globalAutoplay
+                      ? 'Media elements automatically start playing when loading the Space canvas.'
+                      : 'Media elements wait for user interaction to begin playback.'}
+                  </p>
+                </div>
+
+                {/* Individual Element Autoplay */}
+                <label className="flex items-center justify-between p-2 rounded-xl bg-zinc-900/60 border border-zinc-800 cursor-pointer">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-zinc-300">Auto-play on Load</span>
+                    <span className="text-[9px] text-zinc-500">Auto-play this video specifically</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!(element as VideoPlayerElement).autoplay}
+                    onChange={(e) =>
+                      handleUpdate({ autoplay: e.target.checked } as Partial<VideoPlayerElement>)
+                    }
+                    className="accent-indigo-500 rounded"
+                  />
+                </label>
+
                 <label className="flex items-center justify-between p-2 rounded-xl bg-zinc-900/60 border border-zinc-800 cursor-pointer">
                   <span className="text-[11px] text-zinc-300">Loop Playback</span>
                   <input
@@ -715,8 +768,12 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
                     className="accent-indigo-500 rounded"
                   />
                 </label>
+
                 <label className="flex items-center justify-between p-2 rounded-xl bg-zinc-900/60 border border-zinc-800 cursor-pointer">
-                  <span className="text-[11px] text-zinc-300">Start Muted</span>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-zinc-300">Start Muted</span>
+                    <span className="text-[9px] text-zinc-500">Required by browsers for unprompted autoplay</span>
+                  </div>
                   <input
                     type="checkbox"
                     checked={!!(element as VideoPlayerElement).muted}

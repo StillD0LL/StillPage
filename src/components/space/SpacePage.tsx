@@ -14,6 +14,8 @@ import {
   Check,
   Sliders,
   Save,
+  Film,
+  Play,
 } from 'lucide-react';
 import {
   SpaceElement,
@@ -81,6 +83,11 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
   // 8. Action Feedback Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // 9. Auto-play media setting
+  const [isAutoPlayMedia, setIsAutoPlayMedia] = useState<boolean>(() => {
+    return storage.getSpaceAutoplayMedia();
+  });
+
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // Save changes to storage (Continuous auto-save watcher)
@@ -98,6 +105,23 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
   useEffect(() => {
     storage.saveSpaceMode(isViewMode ? 'view' : 'design');
   }, [isViewMode]);
+
+  useEffect(() => {
+    storage.saveSpaceAutoplayMedia(isAutoPlayMedia);
+  }, [isAutoPlayMedia]);
+
+  const handleToggleAutoplayMedia = useCallback(() => {
+    uiSound.playClick();
+    setIsAutoPlayMedia((prev) => {
+      const next = !prev;
+      setToastMessage(
+        next
+          ? 'Auto-play media enabled: Videos will automatically play on the Space canvas'
+          : 'Auto-play media disabled: Videos will wait for user interaction'
+      );
+      return next;
+    });
+  }, []);
 
   // When selection changes, if an element is selected and properties was open or user wants it, keep it open
   const selectedElement = elements.find((el) => el.id === selectedId) || null;
@@ -405,8 +429,37 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Top Right Controls (Properties toggle & View Mode toggle) */}
+      {/* Top Right Controls (Properties toggle, Auto-play setting & View Mode toggle) */}
       <div className="absolute top-4 right-6 z-40 flex items-center gap-2">
+        {/* Auto-play Media Setting Button */}
+        <button
+          type="button"
+          onClick={handleToggleAutoplayMedia}
+          className={`px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xl flex items-center gap-2 cursor-pointer transition-all ${
+            isAutoPlayMedia
+              ? 'bg-sky-600/30 hover:bg-sky-600/40 border-sky-500/50 text-sky-200 shadow-sky-600/20'
+              : 'bg-black/50 hover:bg-black/70 border-white/10 text-zinc-400 hover:text-zinc-200 backdrop-blur-md'
+          }`}
+          title={
+            isAutoPlayMedia
+              ? 'Auto-play media elements: Enabled (Click to disable automatic media playback)'
+              : 'Auto-play media elements: Disabled (Click to enable automatic media playback)'
+          }
+        >
+          <Film className={`w-3.5 h-3.5 ${isAutoPlayMedia ? 'text-sky-400' : 'text-zinc-400'}`} />
+          <span className="hidden sm:inline">Auto-play Media:</span>
+          <span className="sm:hidden">Auto-play:</span>
+          <span
+            className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
+              isAutoPlayMedia
+                ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30'
+                : 'bg-zinc-800 text-zinc-400'
+            }`}
+          >
+            {isAutoPlayMedia ? 'ON' : 'OFF'}
+          </span>
+        </button>
+
         {!isViewMode && (
           <button
             type="button"
@@ -523,6 +576,7 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
                 element={element}
                 isSelected={isSelected}
                 isViewMode={isViewMode}
+                globalAutoplay={isAutoPlayMedia}
                 onUpdate={(updated) => handleUpdateElement(element.id, updated)}
               />
             )}
@@ -549,6 +603,8 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
         onClearCanvas={() => setElements([])}
         onLoadStarterCanvas={() => setElements(getStarterSpaceElements())}
         elementCount={elements.length}
+        isAutoPlayMedia={isAutoPlayMedia}
+        onToggleAutoPlayMedia={handleToggleAutoplayMedia}
       />
 
       {/* Properties Inspector Panel */}
@@ -563,6 +619,8 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
         onSendToBack={handleSendToBack}
         saveStatus={saveStatus}
         lastSavedAt={lastSavedAt}
+        globalAutoplay={isAutoPlayMedia}
+        onToggleGlobalAutoplay={handleToggleAutoplayMedia}
       />
 
       {/* Background Customization Modal */}
