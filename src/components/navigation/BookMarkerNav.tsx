@@ -4,6 +4,7 @@ import {
   Compass,
   LayoutGrid,
   PenTool,
+  Sparkles,
 } from 'lucide-react';
 import { PageId } from '../../types';
 
@@ -76,6 +77,19 @@ export const BookMarkerNav: React.FC<BookMarkerNavProps> = ({
       shortcut: 'Alt+3',
       shortcutBadge: '~3',
     },
+    {
+      id: 'space',
+      label: 'Space',
+      shortLabel: 'Space',
+      icon: <Sparkles className="w-3.5 h-3.5" />,
+      tabColor: '#a855f7', // Purple creative canvas tab
+      borderColor: 'rgba(168, 85, 247, 0.6)',
+      glowColor: 'rgba(168, 85, 247, 0.35)',
+      bgGradient: 'linear-gradient(135deg, #9333ea 0%, #7e22ce 100%)',
+      activeBg: '#a855f7',
+      shortcut: 'Alt+4',
+      shortcutBadge: '~4',
+    },
   ];
 
   // Keyboard shortcut listener for swift page switching
@@ -101,6 +115,9 @@ export const BookMarkerNav: React.FC<BookMarkerNavProps> = ({
       } else if ((e.altKey && e.key === '3') || (e.key === '3' && e.ctrlKey)) {
         e.preventDefault();
         onSelectPage('writer');
+      } else if ((e.altKey && e.key === '4') || (e.key === '4' && e.ctrlKey)) {
+        e.preventDefault();
+        onSelectPage('space');
       }
     };
     window.addEventListener('keydown', handleKeyDown);

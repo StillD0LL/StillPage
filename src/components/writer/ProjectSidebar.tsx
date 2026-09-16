@@ -23,6 +23,7 @@ import {
   Check,
   AlertTriangle,
   FileText,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   WritingProject,
@@ -59,6 +60,7 @@ interface ProjectSidebarProps {
   onReorderDocuments: (docs: WritingDocument[]) => void;
   onReorderFolders: (folders: WritingFolder[]) => void;
   onMoveDocumentToFolder: (docId: string, folderId: string | null) => void;
+  onOpenImportModal?: (folderId?: string | null) => void;
   onOpenSettings?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -85,6 +87,7 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
   onReorderDocuments,
   onReorderFolders,
   onMoveDocumentToFolder,
+  onOpenImportModal,
   onOpenSettings,
   isCollapsed = false,
 }) => {
@@ -196,8 +199,21 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
   const handleDocDragStart = (e: React.DragEvent, docId: string) => {
     setDraggedDocId(docId);
     setDraggedFolderId(null);
+    const doc = documents.find((d) => d.id === docId);
     e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'doc', id: docId }));
-    e.dataTransfer.effectAllowed = 'move';
+    if (doc) {
+      e.dataTransfer.setData(
+        'application/x-writing-item',
+        JSON.stringify({
+          type: doc.docType || 'document',
+          id: doc.id,
+          title: doc.title,
+          url: doc.imageUrl || doc.content,
+          content: doc.content,
+        })
+      );
+    }
+    e.dataTransfer.effectAllowed = 'copyMove';
   };
 
   const handleDocDrop = (e: React.DragEvent, targetDocId: string) => {
@@ -450,6 +466,21 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
               <FilePlus className="w-3 h-3" />
             </button>
 
+            {/* Quick Import Image inside folder */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenImportModal) {
+                  onOpenImportModal(folder.id);
+                }
+              }}
+              className="p-1 text-zinc-400 hover:text-purple-300 rounded hover:bg-zinc-700"
+              title="Import image into this folder"
+            >
+              <ImageIcon className="w-3 h-3" />
+            </button>
+
             {/* Quick Add Character Wiki inside folder */}
             <button
               type="button"
@@ -550,12 +581,30 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
                 >
                   <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     <GripVertical className="w-3 h-3 text-zinc-500 opacity-0 group-hover/doc:opacity-100 cursor-grab shrink-0" />
-                    <span className="text-xs shrink-0">
-                      {doc.docType === 'character'
-                        ? doc.coverEmoji || doc.characterData?.avatarEmoji || '👤'
-                        : doc.coverEmoji || '📄'}
+                    <span className="text-xs shrink-0 flex items-center justify-center">
+                      {doc.docType === 'image' ? (
+                        doc.imageUrl ? (
+                          <img
+                            src={doc.imageUrl}
+                            alt=""
+                            className="w-3.5 h-3.5 rounded object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          '🖼️'
+                        )
+                      ) : doc.docType === 'character' ? (
+                        doc.coverEmoji || doc.characterData?.avatarEmoji || '👤'
+                      ) : (
+                        doc.coverEmoji || '📄'
+                      )}
                     </span>
                     <span className="truncate flex-1">{doc.title}</span>
+                    {doc.docType === 'image' && (
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold shrink-0 border border-purple-500/30">
+                        Image
+                      </span>
+                    )}
                     {doc.docType === 'character' && (
                       <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold shrink-0 border border-purple-500/30">
                         Wiki
@@ -692,29 +741,42 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
 
       {!isCollapsed && (
         <>
-          {/* Quick Action Tools: New File, New Character, New Folder, Search */}
+          {/* Quick Action Tools: New File, Image, Wiki, New Folder, Search */}
           <div className="p-3 border-b border-zinc-800/60 space-y-2">
-            <div className="flex items-center gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 type="button"
                 id="sidebar-new-file-btn"
                 onClick={() => onCreateDocument(activeProjectId, null, 'Untitled Document.md', 'document')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+                className="flex items-center justify-center gap-1 py-1.5 px-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold shadow-sm transition-all cursor-pointer"
                 title="Create Standard Note or Document"
               >
-                <FilePlus className="w-3.5 h-3.5 shrink-0" />
+                <FilePlus className="w-3 h-3 shrink-0" />
                 <span className="truncate">Doc</span>
+              </button>
+              <button
+                type="button"
+                id="sidebar-import-image-btn"
+                onClick={() => onOpenImportModal?.(null)}
+                className="flex items-center justify-center gap-1 py-1.5 px-1 rounded-lg bg-purple-950 hover:bg-purple-900 border border-purple-700/60 text-purple-200 text-[11px] font-semibold shadow-sm transition-all cursor-pointer"
+                title="Import local or URL image into directory"
+              >
+                <ImageIcon className="w-3 h-3 shrink-0 text-purple-400" />
+                <span className="truncate">Image</span>
               </button>
               <button
                 type="button"
                 id="sidebar-new-character-btn"
                 onClick={() => onCreateDocument(activeProjectId, null, 'New Character', 'character')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-600/20 transition-all cursor-pointer"
-                title="Create Wikipedia-Style Character Info Page"
+                className="flex items-center justify-center gap-1 py-1.5 px-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] font-semibold border border-zinc-700/60 transition-colors cursor-pointer"
+                title="Create Character Wiki Page"
               >
-                <UserPlus className="w-3.5 h-3.5 shrink-0 text-purple-200" />
-                <span className="truncate">Character</span>
+                <UserPlus className="w-3 h-3 shrink-0 text-purple-300" />
+                <span className="truncate">Wiki</span>
               </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 id="sidebar-new-folder-btn"
@@ -722,24 +784,24 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
                   setIsCreatingFolder(true);
                   setTargetFolderParentId(null);
                 }}
-                className="flex items-center justify-center p-1.5 px-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700/60 transition-colors cursor-pointer"
+                className="flex items-center justify-center py-1 px-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[11px] font-medium border border-zinc-700/60 transition-colors cursor-pointer shrink-0"
                 title="Create Root Folder"
               >
-                <FolderPlus className="w-3.5 h-3.5 text-amber-400" />
-                <span className="ml-1 text-[11px] hidden sm:inline">Folder</span>
+                <FolderPlus className="w-3 h-3 text-amber-400 mr-1" />
+                <span>+ Folder</span>
               </button>
-            </div>
 
-            {/* Search filter in project files */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search notes & files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-zinc-950/60 border border-zinc-800 focus:border-indigo-500 rounded-xl text-zinc-200 placeholder-zinc-500 focus:outline-none transition-colors"
-              />
+              {/* Search filter in project files */}
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search files..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-2.5 py-1 text-xs bg-zinc-950/60 border border-zinc-800 focus:border-indigo-500 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none transition-colors"
+                />
+              </div>
             </div>
           </div>
 
@@ -857,12 +919,30 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
                     >
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         <GripVertical className="w-3 h-3 text-zinc-500 opacity-0 group-hover/doc:opacity-100 cursor-grab shrink-0" />
-                        <span className="text-xs shrink-0">
-                          {doc.docType === 'character'
-                            ? doc.coverEmoji || doc.characterData?.avatarEmoji || '👤'
-                            : doc.coverEmoji || '📄'}
+                        <span className="text-xs shrink-0 flex items-center justify-center">
+                          {doc.docType === 'image' ? (
+                            doc.imageUrl ? (
+                              <img
+                                src={doc.imageUrl}
+                                alt=""
+                                className="w-3.5 h-3.5 rounded object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              '🖼️'
+                            )
+                          ) : doc.docType === 'character' ? (
+                            doc.coverEmoji || doc.characterData?.avatarEmoji || '👤'
+                          ) : (
+                            doc.coverEmoji || '📄'
+                          )}
                         </span>
                         <span className="truncate flex-1">{doc.title}</span>
+                        {doc.docType === 'image' && (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold shrink-0 border border-purple-500/30">
+                            Image
+                          </span>
+                        )}
                         {doc.docType === 'character' && (
                           <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold shrink-0 border border-purple-500/30">
                             Wiki

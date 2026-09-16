@@ -138,6 +138,262 @@ class UiSoundEngine {
   }
 
   /**
+   * Tactile pickup sound effect when user begins dragging an element.
+   * Gentle upward pitch sweep with soft paper/card resonance.
+   */
+  public playPickup() {
+    if (!this.settings.enabled) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const vol = Math.max(0, Math.min(1, this.settings.volume)) * 0.35;
+      if (vol <= 0) return;
+
+      const pitchMod = this.settings.pitchVariation ? 1 + (Math.random() * 0.04 - 0.02) : 1;
+
+      const masterGain = this.ctx.createGain();
+      masterGain.gain.setValueAtTime(vol, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+      masterGain.connect(this.ctx.destination);
+
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(260 * pitchMod, now);
+      osc.frequency.exponentialRampToValueAtTime(440 * pitchMod, now + 0.05);
+
+      const oscGain = this.ctx.createGain();
+      oscGain.gain.setValueAtTime(0.8, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+      osc.connect(oscGain);
+      oscGain.connect(masterGain);
+
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch {}
+  }
+
+  /**
+   * Satisfying drop/place sound effect when an element is placed or dropped.
+   * Deep tactile thud with a slight wooden/desk resonance.
+   */
+  public playPlace() {
+    if (!this.settings.enabled) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const vol = Math.max(0, Math.min(1, this.settings.volume)) * 0.45;
+      if (vol <= 0) return;
+
+      const pitchMod = this.settings.pitchVariation ? 1 + (Math.random() * 0.04 - 0.02) : 1;
+
+      const masterGain = this.ctx.createGain();
+      masterGain.gain.setValueAtTime(vol, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+      masterGain.connect(this.ctx.destination);
+
+      // Low resonant physical impact
+      const bodyOsc = this.ctx.createOscillator();
+      bodyOsc.type = 'triangle';
+      bodyOsc.frequency.setValueAtTime(140 * pitchMod, now);
+      bodyOsc.frequency.exponentialRampToValueAtTime(48 * pitchMod, now + 0.075);
+
+      const bodyGain = this.ctx.createGain();
+      bodyGain.gain.setValueAtTime(0.85, now);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+      bodyOsc.connect(bodyGain);
+      bodyGain.connect(masterGain);
+
+      bodyOsc.start(now);
+      bodyOsc.stop(now + 0.085);
+
+      // Soft paper/surface contact noise
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.015);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
+      }
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1200 * pitchMod;
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.3, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(masterGain);
+
+      noise.start(now);
+    } catch {}
+  }
+
+  /**
+   * Micro mechanical ratchet tick when rotating an element.
+   * Debounced for smooth tactile ratchet response.
+   */
+  private lastRotateSoundTime = 0;
+  public playRotate() {
+    if (!this.settings.enabled) return;
+    const nowMs = Date.now();
+    if (nowMs - this.lastRotateSoundTime < 35) return;
+    this.lastRotateSoundTime = nowMs;
+
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const vol = Math.max(0, Math.min(1, this.settings.volume)) * 0.28;
+      if (vol <= 0) return;
+
+      const masterGain = this.ctx.createGain();
+      masterGain.gain.setValueAtTime(vol, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+      masterGain.connect(this.ctx.destination);
+
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(2400 + Math.random() * 200, now);
+      osc.frequency.exponentialRampToValueAtTime(900, now + 0.018);
+
+      const oscGain = this.ctx.createGain();
+      oscGain.gain.setValueAtTime(0.7, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+      osc.connect(oscGain);
+      oscGain.connect(masterGain);
+
+      osc.start(now);
+      osc.stop(now + 0.022);
+    } catch {}
+  }
+
+  /**
+   * Pleasant bubble chime when creating/spawning a new element from toolbar.
+   */
+  public playSpawn() {
+    if (!this.settings.enabled) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const vol = Math.max(0, Math.min(1, this.settings.volume)) * 0.4;
+      if (vol <= 0) return;
+
+      const masterGain = this.ctx.createGain();
+      masterGain.gain.setValueAtTime(vol, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+      masterGain.connect(this.ctx.destination);
+
+      // Rising harmonic double-tone
+      [580, 880].forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const g = this.ctx!.createGain();
+        osc.type = 'sine';
+        const start = now + idx * 0.045;
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.15, start + 0.08);
+
+        g.gain.setValueAtTime(0.6, start);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.09);
+
+        osc.connect(g);
+        g.connect(masterGain);
+
+        osc.start(start);
+        osc.stop(start + 0.1);
+      });
+    } catch {}
+  }
+
+  /**
+   * Crisp delete sound when removing an element.
+   */
+  public playDelete() {
+    if (!this.settings.enabled) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const vol = Math.max(0, Math.min(1, this.settings.volume)) * 0.35;
+      if (vol <= 0) return;
+
+      const masterGain = this.ctx.createGain();
+      masterGain.gain.setValueAtTime(vol, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+      masterGain.connect(this.ctx.destination);
+
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.09);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1800, now);
+      filter.frequency.exponentialRampToValueAtTime(200, now + 0.1);
+
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.4, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+      osc.connect(filter);
+      filter.connect(g);
+      g.connect(masterGain);
+
+      osc.start(now);
+      osc.stop(now + 0.11);
+    } catch {}
+  }
+
+  /**
+   * Celebration cheer arpeggio for custom action buttons.
+   */
+  public playCheer() {
+    if (!this.settings.enabled) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const vol = Math.max(0, Math.min(1, this.settings.volume)) * 0.45;
+      if (vol <= 0) return;
+
+      const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const g = this.ctx!.createGain();
+        const start = now + idx * 0.055;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+
+        g.gain.setValueAtTime(vol * 0.7, start);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+
+        osc.connect(g);
+        g.connect(this.ctx!.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.24);
+      });
+    } catch {}
+  }
+
+  /**
    * Initializes a global delegated listener on window to capture user interaction clicks.
    */
   public initGlobalListener() {

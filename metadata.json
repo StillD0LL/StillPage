@@ -1,6 +1,6 @@
 {
   "name": "Personal Homepage & Dashboard",
-  "description": "A customizable personal homepage and writing suite with widgets, hierarchical documents, and productivity tools.",
+  "description": "A customizable personal homepage, writing suite, and flexible Space canvas for creating, arranging, dragging, and rotating multimedia elements.",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

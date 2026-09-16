@@ -245,8 +245,9 @@ export interface VideoWidgetSettings {
 
 
 export * from './start';
+export * from './space';
 
-export type PageId = 'start' | 'dashboard' | 'writer';
+export type PageId = 'start' | 'dashboard' | 'writer' | 'space';
 
 export interface WritingProject {
   id: string;
@@ -272,7 +273,7 @@ export interface WritingFolder {
   updatedAt: number;
 }
 
-export type WritingDocType = 'document' | 'character';
+export type WritingDocType = 'document' | 'character' | 'image';
 
 export interface CharacterInfoboxField {
   id: string;
@@ -364,8 +365,11 @@ export interface WritingDocument {
   folderId?: string | null; // null or empty string = root of project
   title: string;
   content: string;
-  docType?: WritingDocType; // 'document' (default) or 'character'
+  docType?: WritingDocType; // 'document' (default), 'character', or 'image'
   characterData?: CharacterProfile;
+  imageUrl?: string;
+  imageSize?: number;
+  imageDimensions?: { width: number; height: number };
   tags?: string[];
   pinned?: boolean;
   wordCount: number;

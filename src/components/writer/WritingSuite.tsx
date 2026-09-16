@@ -3,6 +3,8 @@ import { ProjectSidebar } from './ProjectSidebar';
 import { WritingToolbar } from './WritingToolbar';
 import { DocumentEditor } from './DocumentEditor';
 import { CharacterWikiEditor } from './CharacterWikiEditor';
+import { ImageViewer } from './ImageViewer';
+import { ImportImageModal } from './modals/ImportImageModal';
 import { WritingSettingsModal } from './WritingSettingsModal';
 import {
   WritingProject,
@@ -200,6 +202,8 @@ export const WritingSuite: React.FC<WritingSuiteProps> = ({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showImportImageModal, setShowImportImageModal] = useState(false);
+  const [importTargetFolderId, setImportTargetFolderId] = useState<string | null>(null);
 
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -356,10 +360,15 @@ export const WritingSuite: React.FC<WritingSuiteProps> = ({
     }
 
     const isChar = docType === 'character';
-    const cleanTitle = title.replace(/\.(md|wiki|txt)$/i, '');
+    const isImage = docType === 'image';
+    const cleanTitle = isImage
+      ? title
+      : title.replace(/\.(md|wiki|txt)$/i, '');
+
     const charProfile = isChar
       ? initialCharacterData || createDefaultCharacterProfile(cleanTitle === 'New Character' ? 'New Character' : cleanTitle)
       : undefined;
+
     const content = isChar
       ? characterProfileToMarkdown(charProfile!)
       : `# ${cleanTitle}\n\nStart typing here...`;
@@ -380,7 +389,7 @@ export const WritingSuite: React.FC<WritingSuiteProps> = ({
       order: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      coverEmoji: isChar ? charProfile?.avatarEmoji || '🧙‍♂️' : '📄',
+      coverEmoji: isImage ? '🖼️' : isChar ? charProfile?.avatarEmoji || '🧙‍♂️' : '📄',
       isFavorite: false,
     };
 
@@ -423,6 +432,40 @@ export const WritingSuite: React.FC<WritingSuiteProps> = ({
     setDocuments((prev) =>
       prev.map((doc) => (doc.id === docId ? { ...doc, folderId, updatedAt: Date.now() } : doc))
     );
+  };
+
+  // Image directory import handler
+  const handleImportImageFile = (imageData: {
+    title: string;
+    imageUrl: string;
+    imageSize?: number;
+    imageDimensions?: { width: number; height: number };
+    folderId?: string | null;
+  }) => {
+    const newImageDoc: WritingDocument = {
+      id: `doc-img-${Date.now()}`,
+      projectId: activeProjectId,
+      folderId: imageData.folderId !== undefined ? imageData.folderId : importTargetFolderId,
+      title: imageData.title,
+      content: imageData.imageUrl,
+      docType: 'image',
+      imageUrl: imageData.imageUrl,
+      imageSize: imageData.imageSize,
+      imageDimensions: imageData.imageDimensions,
+      tags: ['Image', 'Asset'],
+      wordCount: 0,
+      charCount: 0,
+      readingTimeMinutes: 0,
+      status: 'completed',
+      order: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      coverEmoji: '🖼️',
+      isFavorite: false,
+    };
+
+    setDocuments((prev) => [newImageDoc, ...prev]);
+    setActiveDocumentId(newImageDoc.id);
   };
 
   // Project Operations
@@ -760,14 +803,25 @@ export const WritingSuite: React.FC<WritingSuiteProps> = ({
             onReorderDocuments={(docs) => setDocuments(docs)}
             onReorderFolders={(flds) => setFolders(flds)}
             onMoveDocumentToFolder={handleMoveDocumentToFolder}
+            onOpenImportModal={(folderId) => {
+              setImportTargetFolderId(folderId || null);
+              setShowImportImageModal(true);
+            }}
             onOpenSettings={() => setShowSettingsModal(true)}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           />
         )}
 
-        {/* Central Document Canvas / Editor (Standard Markdown or Character Wiki) */}
-        {activeDocument?.docType === 'character' ? (
+        {/* Central Workspace Content Area: Image Viewer, Character Wiki, or Standard Document */}
+        {activeDocument?.docType === 'image' ? (
+          <ImageViewer
+            document={activeDocument}
+            folders={folders.filter((f) => f.projectId === activeProjectId)}
+            onUpdateDocument={handleUpdateDocument}
+            onDeleteDocument={handleDeleteDocument}
+          />
+        ) : activeDocument?.docType === 'character' ? (
           <CharacterWikiEditor
             document={activeDocument}
             settings={settings}
@@ -856,6 +910,25 @@ export const WritingSuite: React.FC<WritingSuiteProps> = ({
           </div>
         </div>
       )}
+      {/* Import Image into Directory Modal */}
+      <ImportImageModal
+        isOpen={showImportImageModal}
+        onClose={() => {
+          setShowImportImageModal(false);
+          setImportTargetFolderId(null);
+        }}
+        folders={folders.filter((f) => f.projectId === activeProjectId)}
+        initialFolderId={importTargetFolderId}
+        onImportImage={(img) => {
+          handleImportImageFile({
+            title: img.title,
+            imageUrl: img.imageUrl,
+            imageSize: img.imageSize,
+            imageDimensions: img.imageDimensions,
+            folderId: img.folderId,
+          });
+        }}
+      />
     </div>
   );
 };

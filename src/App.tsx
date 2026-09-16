@@ -35,6 +35,7 @@ import { storage } from './services/storage';
 import { uiSound } from './services/uiSound';
 import { StartPage } from './components/start/StartPage';
 import { WritingSuite } from './components/writer/WritingSuite';
+import { SpacePage } from './components/space/SpacePage';
 import { Header } from './components/Header';
 import { WidgetContainer } from './components/widgets/WidgetContainer';
 import { WeatherWidget } from './components/widgets/WeatherWidget';
@@ -722,6 +723,10 @@ export default function App() {
             onSelectPage={handleSelectPage}
             onBackToDashboard={() => handleSelectPage('dashboard')}
           />
+        </div>
+      ) : activePage === 'space' ? (
+        <div className="relative z-10 flex-1 flex flex-col h-[calc(100vh-56px)] overflow-hidden">
+          <SpacePage onNavigate={handleSelectPage} />
         </div>
       ) : (
         /* Main Dashboard Container Content */

@@ -545,7 +545,7 @@ export const WritingSettingsModal: React.FC<WritingSettingsModalProps> = ({
               {/* Default Font Family */}
               <div className="p-4 rounded-2xl bg-zinc-950/60 border border-zinc-800 space-y-2">
                 <label className="text-xs font-bold text-zinc-200 block">Default Typography Style</label>
-                <p className="text-[11px] text-zinc-400">Choose the default typeface applied to your document canvas.</p>
+                <p className="text-[11px] text-zinc-400">Choose the default typeface applied to your documents.</p>
                 <div className="grid grid-cols-3 gap-2 pt-1">
                   {(
                     [

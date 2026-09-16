@@ -20,8 +20,11 @@ import {
   UiSoundSettings,
   StartPageConfig,
   PageId,
+  SpaceElement,
+  SpaceBackgroundConfig,
 } from '../types';
 import { DEFAULT_START_CONFIG } from '../utils/startDefaults';
+import { DEFAULT_SPACE_BACKGROUND } from '../utils/spaceDefaults';
 
 export const DEFAULT_THEME: DashboardTheme = {
   mode: 'dark',
@@ -805,7 +808,9 @@ This is your default writing environment for crafting stories, character lore, t
 ## 🚀 Getting Started
 
 - **Documents & Notes**: Click **+ Doc** to create a standard Markdown document.
-- **Character Wiki**: Click **+ Character** to create structured Wikipedia-style character lore.
+- **Visual Canvas**: Click **+ Canvas** to brainstorm and arrange idea cards on an infinite board.
+- **Image Directory**: Click **+ Image** to import local or web images into your project.
+- **Character Wiki**: Click **+ Wiki** to create structured Wikipedia-style character lore.
 - **Folders & Nesting**: Click **+ Folder** to organize your documents hierarchically.
 - **Zen Focus Mode**: Focus without distractions by pressing the Focus button or hitting **ESC**.
 
@@ -822,6 +827,27 @@ This is your default writing environment for crafting stories, character lore, t
     updatedAt: 1700000000000,
     coverEmoji: '📝',
     isFavorite: true,
+  },
+  {
+    id: 'doc-img-alpine',
+    projectId: 'proj-default-workspace',
+    folderId: null,
+    title: 'Alpine Peak Moodboard.png',
+    content: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&auto=format&fit=crop&q=80',
+    docType: 'image',
+    imageUrl: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&auto=format&fit=crop&q=80',
+    imageSize: 184320,
+    imageDimensions: { width: 1200, height: 800 },
+    tags: ['Image', 'Asset', 'Moodboard'],
+    wordCount: 0,
+    charCount: 0,
+    readingTimeMinutes: 0,
+    status: 'completed',
+    order: 2,
+    createdAt: 1700000000000,
+    updatedAt: 1700000000000,
+    coverEmoji: '🖼️',
+    isFavorite: false,
   },
 ];
 
@@ -862,6 +888,9 @@ const STORAGE_KEYS = {
   WRITING_DOCUMENTS: 'nexus_writing_documents',
   WRITING_SETTINGS: 'nexus_writing_settings',
   UI_SOUND_SETTINGS: 'nexus_ui_sound_settings',
+  SPACE_ELEMENTS: 'nexus_space_elements',
+  SPACE_BACKGROUND: 'nexus_space_background',
+  SPACE_MODE: 'nexus_space_mode',
 };
 
 export const storage = {
@@ -1632,7 +1661,13 @@ export const storage = {
         'doc-journal-today',
       ]);
       const sampleProjectIds = new Set(['proj-creative', 'proj-work', 'proj-journal']);
-      const filtered = parsed.filter((d) => !sampleIds.has(d.id) && !sampleProjectIds.has(d.projectId));
+      const filtered = parsed.filter(
+        (d) =>
+          !sampleIds.has(d.id) &&
+          !sampleProjectIds.has(d.projectId) &&
+          (d as any).docType !== 'canvas' &&
+          !d.title?.toLowerCase().endsWith('.canvas')
+      );
       if (filtered.length === 0) {
         return DEFAULT_WRITING_DOCUMENTS;
       }
@@ -1692,6 +1727,87 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.UI_SOUND_SETTINGS, JSON.stringify(settings));
     } catch (e) {
       console.warn('Storage save failed for UI sound settings', e);
+    }
+  },
+
+  getSpaceElements(): SpaceElement[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SPACE_ELEMENTS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Storage read failed for space elements', e);
+    }
+    // Default to empty array for an empty flexible creative canvas viewport as requested
+    return [];
+  },
+
+  saveSpaceElements(elements: SpaceElement[]): boolean {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SPACE_ELEMENTS, JSON.stringify(elements));
+      return true;
+    } catch (e: unknown) {
+      console.warn('Storage save failed for space elements', e);
+      // If quota exceeded, attempt to prune overly long base64 strings if present
+      try {
+        const sanitized = elements.map((el) => {
+          if (el.type === 'image' && el.imageUrl && el.imageUrl.length > 500000) {
+            // Truncate excessively bloated raw image string to prevent full crash
+            return { ...el, imageUrl: '' };
+          }
+          return el;
+        });
+        localStorage.setItem(STORAGE_KEYS.SPACE_ELEMENTS, JSON.stringify(sanitized));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  },
+
+  getSpaceBackground(): SpaceBackgroundConfig {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SPACE_BACKGROUND);
+      if (data) {
+        return { ...DEFAULT_SPACE_BACKGROUND, ...JSON.parse(data) };
+      }
+    } catch (e) {
+      console.warn('Storage read failed for space background', e);
+    }
+    return DEFAULT_SPACE_BACKGROUND;
+  },
+
+  saveSpaceBackground(config: SpaceBackgroundConfig): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SPACE_BACKGROUND, JSON.stringify(config));
+    } catch (e) {
+      console.warn('Storage save failed for space background', e);
+    }
+  },
+
+  getSpaceMode(): 'design' | 'view' {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SPACE_MODE);
+      if (data === 'view' || data === 'design') return data;
+    } catch {}
+    return 'design';
+  },
+
+  saveSpaceMode(mode: 'design' | 'view'): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SPACE_MODE, mode);
+    } catch {}
+  },
+
+  resetSpaceData(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.SPACE_ELEMENTS);
+      localStorage.removeItem(STORAGE_KEYS.SPACE_BACKGROUND);
+      localStorage.removeItem(STORAGE_KEYS.SPACE_MODE);
+    } catch (e) {
+      console.warn('Failed to reset space data', e);
     }
   },
 };
