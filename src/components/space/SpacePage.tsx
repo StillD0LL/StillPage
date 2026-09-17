@@ -58,6 +58,7 @@ import { SpaceDock } from './SpaceDock';
 import { SpaceBackgroundModal } from './SpaceBackgroundModal';
 import { SpacePropertiesPanel } from './SpacePropertiesPanel';
 import { SpaceMediaModal } from './SpaceMediaModal';
+import { SpaceLayoutModal } from './SpaceLayoutModal';
 
 interface SpacePageProps {
   onNavigate?: (pageId: PageId) => void;
@@ -97,6 +98,9 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
   // 7b. Media Manager Modal (Local Video & Web Address)
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
 
+  // 7c. Presets & Custom Layouts Modal
+  const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
+
   // 8. Action Feedback Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -118,7 +122,7 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
 
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Sync external state updates (e.g. from Settings & Backup modal)
+  // Sync external state updates (e.g. from Settings & Backup modal or window events)
   useEffect(() => {
     setElements(storage.getSpaceElements());
     setBackgroundConfig(storage.getSpaceBackground());
@@ -126,6 +130,18 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
     setActiveLayoutId(storage.getActiveSpaceLayoutId());
     setIsAutoPlayMedia(storage.getSpaceAutoplayMedia());
   }, [dataVersion]);
+
+  // Real-time layout updates listener (broadcasted whenever layouts are saved/deleted in any modal)
+  useEffect(() => {
+    const handleLayoutsChanged = () => {
+      setSavedLayouts(storage.getSavedSpaceLayouts());
+      setActiveLayoutId(storage.getActiveSpaceLayoutId());
+    };
+    window.addEventListener('space-layouts-updated', handleLayoutsChanged);
+    return () => {
+      window.removeEventListener('space-layouts-updated', handleLayoutsChanged);
+    };
+  }, []);
 
   // Save changes to storage (Continuous auto-save watcher)
   useEffect(() => {
@@ -821,10 +837,75 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
             )}
           </div>
         </div>
+
+        {/* Quick Presets & Layouts Pill */}
+        <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 text-xs shadow-xl">
+          <button
+            type="button"
+            onClick={() => handleCycleLayout('prev')}
+            className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            title="Previous layout preset"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              uiSound.playClick();
+              setIsLayoutModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg hover:bg-white/10 text-zinc-200 hover:text-white transition-colors cursor-pointer"
+            title="Open Space Presets & Custom Layouts Menu"
+          >
+            <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+            <span className="font-semibold text-[11px] max-w-[130px] truncate">
+              {activeLayout ? activeLayout.name : 'Space Presets'}
+            </span>
+            <span className="text-[10px] text-zinc-400">
+              ({savedLayouts.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleCycleLayout('next')}
+            className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            title="Next layout preset"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              uiSound.playClick();
+              setIsLayoutModalOpen(true);
+            }}
+            className="ml-1 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/30 text-[10px] font-semibold transition-colors cursor-pointer"
+            title="Save current canvas layout to presets"
+          >
+            + Save
+          </button>
+        </div>
       </div>
 
       {/* Top Right Controls (Properties toggle, Auto-play setting, Settings, & View Mode toggle) */}
       <div className="absolute top-4 right-6 z-40 flex items-center gap-2">
+        {/* Presets & Custom Layouts Menu Button */}
+        <button
+          type="button"
+          onClick={() => {
+            uiSound.playClick();
+            setIsLayoutModalOpen(true);
+          }}
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold border shadow-xl flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300 hover:text-amber-200 backdrop-blur-md cursor-pointer transition-all"
+          title="Space Presets & Custom Layouts Menu"
+        >
+          <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+          <span className="hidden sm:inline">Presets ({savedLayouts.length})</span>
+        </button>
+
         {/* Settings, Custom Space Layouts & Backup Trigger */}
         <button
           type="button"
@@ -1006,6 +1087,7 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
       <SpaceDock
         onSpawnElement={(type, clientX, clientY) => handleSpawnElement(type, clientX, clientY)}
         onOpenMediaModal={() => setIsMediaModalOpen(true)}
+        onOpenLayoutModal={() => setIsLayoutModalOpen(true)}
         onOpenBackgroundCustomizer={() => setIsBgModalOpen(true)}
         isViewMode={isViewMode}
         onToggleViewMode={() => setIsViewMode(!isViewMode)}
@@ -1050,6 +1132,19 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
         onClose={() => setIsMediaModalOpen(false)}
         onAddVideo={handleAddVideoFromModal}
         onAddImage={handleAddImageFromModal}
+      />
+
+      {/* Space Custom Layouts & Presets Modal */}
+      <SpaceLayoutModal
+        isOpen={isLayoutModalOpen}
+        onClose={() => setIsLayoutModalOpen(false)}
+        savedLayouts={savedLayouts}
+        activeLayoutId={activeLayoutId}
+        currentElements={elements}
+        currentBackground={backgroundConfig}
+        onSaveLayout={handleSaveCurrentLayout}
+        onLoadLayout={handleLoadLayout}
+        onDeleteLayout={handleDeleteLayout}
       />
 
       {/* Interactive Action Toast */}

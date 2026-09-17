@@ -1866,25 +1866,68 @@ export const storage = {
     return defaults;
   },
 
-  saveSpaceLayout(layout: SpaceLayout): void {
+  saveSpaceLayout(layout: SpaceLayout): boolean {
     try {
       const existing = this.getSavedSpaceLayouts();
       const index = existing.findIndex((l) => l.id === layout.id);
+
+      // Sanitize elements to prevent excessive base64 strings from failing storage quota
+      const sanitizedElements = layout.elements.map((el) => {
+        if (el.type === 'image' && el.imageUrl && el.imageUrl.length > 500000) {
+          // If unusually large data url, keep layout but avoid crashing
+          return { ...el, imageUrl: '' };
+        }
+        return el;
+      });
+
+      const cleanLayout: SpaceLayout = {
+        ...layout,
+        elements: sanitizedElements,
+        updatedAt: Date.now(),
+      };
+
       let updated: SpaceLayout[];
       if (index >= 0) {
         updated = [...existing];
-        updated[index] = { ...layout, updatedAt: Date.now() };
+        updated[index] = cleanLayout;
       } else {
-        updated = [layout, ...existing];
+        updated = [cleanLayout, ...existing];
       }
       localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(updated));
       localStorage.setItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID, layout.id);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('space-layouts-updated', {
+            detail: { layoutId: layout.id, action: 'save' },
+          })
+        );
+      }
+      return true;
     } catch (e) {
-      console.warn('Failed to save space layout', e);
+      console.warn('Failed to save space layout, attempting quota fallback', e);
+      try {
+        const existing = this.getSavedSpaceLayouts();
+        const trimmed = [layout, ...existing.filter((l) => l.id !== layout.id)].slice(0, 15);
+        localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(trimmed));
+        localStorage.setItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID, layout.id);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('space-layouts-updated', {
+              detail: { layoutId: layout.id, action: 'save' },
+            })
+          );
+        }
+        return true;
+      } catch (quotaErr) {
+        console.error('Storage quota exceeded completely for space layout', quotaErr);
+        return false;
+      }
     }
   },
 
-  deleteSpaceLayout(id: string): void {
+  deleteSpaceLayout(id: string): boolean {
     try {
       const existing = this.getSavedSpaceLayouts();
       const updated = existing.filter((l) => l.id !== id);
@@ -1892,10 +1935,21 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(finalLayouts));
       const activeId = this.getActiveSpaceLayoutId();
       if (activeId === id) {
-        localStorage.setItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID, finalLayouts[0].id);
+        const fallback = finalLayouts[0]?.id || null;
+        this.setActiveSpaceLayoutId(fallback);
       }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('space-layouts-updated', {
+            detail: { layoutId: id, action: 'delete' },
+          })
+        );
+      }
+      return true;
     } catch (e) {
       console.warn('Failed to delete space layout', e);
+      return false;
     }
   },
 

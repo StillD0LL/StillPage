@@ -20,6 +20,7 @@ import { uiSound } from '../../services/uiSound';
 interface SpaceDockProps {
   onSpawnElement: (type: SpaceElementType, clientX?: number, clientY?: number) => void;
   onOpenMediaModal?: () => void;
+  onOpenLayoutModal?: () => void;
   onOpenBackgroundCustomizer: () => void;
   isViewMode: boolean;
   onToggleViewMode: () => void;
@@ -78,6 +79,7 @@ const DOCK_ELEMENTS: DockToolItem[] = [
 export const SpaceDock: React.FC<SpaceDockProps> = ({
   onSpawnElement,
   onOpenMediaModal,
+  onOpenLayoutModal,
   onOpenBackgroundCustomizer,
   isViewMode,
   onToggleViewMode,
@@ -173,6 +175,21 @@ export const SpaceDock: React.FC<SpaceDockProps> = ({
 
       {/* 2. Utility & Control Icons */}
       <div className="flex items-center gap-1.5">
+        {/* Space Custom Layouts & Presets Menu Trigger */}
+        {onOpenLayoutModal && (
+          <button
+            type="button"
+            onClick={() => {
+              uiSound.playClick();
+              onOpenLayoutModal();
+            }}
+            className="w-10 h-10 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/10 flex items-center justify-center transition-all hover:scale-105 cursor-pointer shadow-md group"
+            title="Space Presets & Custom Layouts (Save, browse & switch canvas presets)"
+          >
+            <Bookmark className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+          </button>
+        )}
+
         {/* Settings, Custom Layouts & Backup Menu Trigger */}
         {onOpenSettings && (
           <button

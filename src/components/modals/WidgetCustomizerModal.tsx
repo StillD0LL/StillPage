@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   LayoutGrid,
@@ -25,9 +25,24 @@ import {
   Copy,
   Info,
   BookmarkCheck,
+  Layers,
+  Film,
+  Camera,
+  Compass,
+  ArrowUpRight,
 } from 'lucide-react';
-import { WidgetConfig, WidgetType, WidgetSize, LayoutPreset } from '../../types';
+import {
+  WidgetConfig,
+  WidgetType,
+  WidgetSize,
+  LayoutPreset,
+  SpaceLayout,
+  SpaceElement,
+  SpaceBackgroundConfig,
+  PageId,
+} from '../../types';
 import { storage } from '../../services/storage';
+import { uiSound } from '../../services/uiSound';
 
 interface WidgetCustomizerModalProps {
   isOpen: boolean;
@@ -38,6 +53,8 @@ interface WidgetCustomizerModalProps {
   onApplyLayoutPreset: (preset: LayoutPreset | string) => void;
   onResetLayout: () => void;
   initialTab?: 'widgets' | 'presets';
+  onNavigateToSpace?: () => void;
+  activePage?: PageId;
 }
 
 const WIDGET_METADATA: Record<
@@ -109,8 +126,15 @@ export const WidgetCustomizerModal: React.FC<WidgetCustomizerModalProps> = ({
   onApplyLayoutPreset,
   onResetLayout,
   initialTab = 'widgets',
+  onNavigateToSpace,
+  activePage,
 }) => {
   const [activeTab, setActiveTab] = useState<'widgets' | 'presets'>(initialTab);
+  const [presetCategory, setPresetCategory] = useState<'dashboard' | 'space'>(() => {
+    return activePage === 'space' ? 'space' : 'dashboard';
+  });
+
+  // Dashboard presets
   const [presets, setPresets] = useState<LayoutPreset[]>(() => storage.getLayoutPresets());
   const [newPresetName, setNewPresetName] = useState('');
   const [newPresetDesc, setNewPresetDesc] = useState('');
@@ -122,10 +146,113 @@ export const WidgetCustomizerModal: React.FC<WidgetCustomizerModalProps> = ({
   const [showImportBox, setShowImportBox] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
+  // Space Canvas layouts & presets
+  const [spaceLayouts, setSpaceLayouts] = useState<SpaceLayout[]>(() => storage.getSavedSpaceLayouts());
+  const [activeSpaceLayoutId, setActiveSpaceLayoutId] = useState<string | null>(() => storage.getActiveSpaceLayoutId());
+  const [isSavingSpaceLayout, setIsSavingSpaceLayout] = useState(false);
+  const [newSpaceName, setNewSpaceName] = useState('');
+  const [newSpaceDesc, setNewSpaceDesc] = useState('');
+  const [confirmDeleteSpaceId, setConfirmDeleteSpaceId] = useState<string | null>(null);
+  const [spaceFilter, setSpaceFilter] = useState<'all' | 'custom' | 'presets'>('all');
+
+  // Keep layouts up-to-date across components
+  useEffect(() => {
+    const handleUpdate = () => {
+      setSpaceLayouts(storage.getSavedSpaceLayouts());
+      setActiveSpaceLayoutId(storage.getActiveSpaceLayoutId());
+      setPresets(storage.getLayoutPresets());
+    };
+    window.addEventListener('space-layouts-updated', handleUpdate);
+    return () => window.removeEventListener('space-layouts-updated', handleUpdate);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPresets(storage.getLayoutPresets());
+      setSpaceLayouts(storage.getSavedSpaceLayouts());
+      setActiveSpaceLayoutId(storage.getActiveSpaceLayoutId());
+      if (activePage === 'space') {
+        setPresetCategory('space');
+      }
+    }
+  }, [isOpen, activePage]);
+
   if (!isOpen) return null;
 
   const refreshPresets = () => {
     setPresets(storage.getLayoutPresets());
+    setSpaceLayouts(storage.getSavedSpaceLayouts());
+    setActiveSpaceLayoutId(storage.getActiveSpaceLayoutId());
+  };
+
+  const handleSaveCurrentSpaceLayout = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSpaceName.trim()) return;
+    const elements = storage.getSpaceElements();
+    const bg = storage.getSpaceBackground();
+    const newLayout: SpaceLayout = {
+      id: `layout-custom-${Date.now()}`,
+      name: newSpaceName.trim(),
+      description: newSpaceDesc.trim() || `${elements.length} elements with custom media`,
+      elements: JSON.parse(JSON.stringify(elements)),
+      background: JSON.parse(JSON.stringify(bg)),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isPreset: false,
+    };
+    const ok = storage.saveSpaceLayout(newLayout);
+    const updated = storage.getSavedSpaceLayouts();
+    setSpaceLayouts(updated);
+    setActiveSpaceLayoutId(newLayout.id);
+    setIsSavingSpaceLayout(false);
+    setNewSpaceName('');
+    setNewSpaceDesc('');
+    uiSound.playPlace();
+    setSaveSuccessMsg(ok ? `Custom space layout "${newLayout.name}" saved to presets!` : 'Storage limit reached - layout partially saved');
+    setTimeout(() => setSaveSuccessMsg(null), 3500);
+  };
+
+  const handleApplySpaceLayout = (layout: SpaceLayout, shouldNavigate = false) => {
+    uiSound.playPlace();
+    const cloned = JSON.parse(JSON.stringify(layout.elements));
+    storage.saveSpaceElements(cloned);
+    storage.saveSpaceBackground(layout.background);
+    storage.setActiveSpaceLayoutId(layout.id);
+    setActiveSpaceLayoutId(layout.id);
+    setSaveSuccessMsg(`Applied Space Canvas layout: "${layout.name}"`);
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
+    if (shouldNavigate && onNavigateToSpace) {
+      onClose();
+      onNavigateToSpace();
+    }
+  };
+
+  const handleDeleteSpaceLayout = (id: string, name: string) => {
+    uiSound.playClick();
+    storage.deleteSpaceLayout(id);
+    const updated = storage.getSavedSpaceLayouts();
+    setSpaceLayouts(updated);
+    if (activeSpaceLayoutId === id) {
+      const fallback = updated[0]?.id || null;
+      setActiveSpaceLayoutId(fallback);
+      storage.setActiveSpaceLayoutId(fallback);
+    }
+    setConfirmDeleteSpaceId(null);
+    setSaveSuccessMsg(`Deleted space layout "${name}"`);
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
+  };
+
+  const handleExportSpaceLayout = (layout: SpaceLayout) => {
+    const json = JSON.stringify(layout, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `space-layout-${layout.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleSaveCurrentPreset = (e?: React.FormEvent) => {
@@ -266,7 +393,7 @@ export const WidgetCustomizerModal: React.FC<WidgetCustomizerModalProps> = ({
               <Sparkles className="w-3.5 h-3.5" />
               <span>Saved Layout Presets</span>
               <span className="px-1.5 py-0.2 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[10px] font-mono">
-                {presets.length}
+                {presets.length + spaceLayouts.length}
               </span>
             </button>
           </div>
@@ -274,11 +401,17 @@ export const WidgetCustomizerModal: React.FC<WidgetCustomizerModalProps> = ({
           {activeTab === 'presets' && (
             <button
               type="button"
-              onClick={() => setIsSavingPreset(!isSavingPreset)}
+              onClick={() => {
+                if (presetCategory === 'space') {
+                  setIsSavingSpaceLayout(!isSavingSpaceLayout);
+                } else {
+                  setIsSavingPreset(!isSavingPreset);
+                }
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Save Current Layout</span>
+              <span>{presetCategory === 'space' ? 'Save Current Space Canvas' : 'Save Current Layout'}</span>
             </button>
           )}
         </div>
@@ -437,8 +570,38 @@ export const WidgetCustomizerModal: React.FC<WidgetCustomizerModalProps> = ({
         {/* Tab 2: Saved Layout Presets */}
         {activeTab === 'presets' && (
           <div className="p-6 overflow-y-auto space-y-6 flex-1">
-            {/* Save Current Layout Form */}
-            {isSavingPreset ? (
+            {/* Presets Category Switcher (Dashboard Widgets vs Space Canvas Layouts) */}
+            <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-950/80 border border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setPresetCategory('dashboard')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  presetCategory === 'dashboard'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Dashboard Widgets ({presets.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresetCategory('space')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  presetCategory === 'space'
+                    ? 'bg-amber-500 text-zinc-950 shadow-md shadow-amber-500/30 font-extrabold'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Space Canvas Layouts ({spaceLayouts.length})</span>
+              </button>
+            </div>
+
+            {presetCategory === 'dashboard' && (
+              <div className="space-y-6">
+                {/* Save Current Layout Form */}
+                {isSavingPreset ? (
               <form
                 onSubmit={handleSaveCurrentPreset}
                 className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/40 space-y-3 animate-in fade-in zoom-in-95 duration-150"
@@ -725,6 +888,322 @@ export const WidgetCustomizerModal: React.FC<WidgetCustomizerModalProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Category 2: Space Canvas Layouts & Presets */}
+        {presetCategory === 'space' && (
+          <div className="space-y-5">
+            {/* Save Current Space Layout Form */}
+            {isSavingSpaceLayout ? (
+              <form
+                onSubmit={handleSaveCurrentSpaceLayout}
+                className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/40 space-y-3 animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-300 uppercase tracking-wider">
+                    <Save className="w-4 h-4 text-amber-400" />
+                    <span>Save Current Space Canvas to Presets</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsSavingSpaceLayout(false)}
+                    className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-zinc-300 mb-1">
+                      Layout Preset Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={newSpaceName}
+                      onChange={(e) => setNewSpaceName(e.target.value)}
+                      placeholder="e.g., Chill Loft, Photo & Video Stage, Media Wall"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-zinc-300 mb-1">
+                      Description (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newSpaceDesc}
+                      onChange={(e) => setNewSpaceDesc(e.target.value)}
+                      placeholder="e.g., 2 local videos, 3 framed pictures and quick actions"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-[11px] text-amber-300/85">
+                    Captures current active elements, media frames, and background texture.
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsSavingSpaceLayout(false)}
+                      className="px-3 py-1.5 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!newSpaceName.trim()}
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Space Layout</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-800/40 border border-zinc-700/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-zinc-200">
+                      Save Space Canvas Layout
+                    </div>
+                    <div className="text-[11px] text-zinc-400">
+                      Save your custom arrangement of photo frames, local & direct videos, notes, and buttons.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSavingSpaceLayout(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Save as Space Preset</span>
+                </button>
+              </div>
+            )}
+
+            {/* Filter and Count Header */}
+            <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSpaceFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    spaceFilter === 'all'
+                      ? 'bg-zinc-700 text-white'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  All ({spaceLayouts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSpaceFilter('custom')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    spaceFilter === 'custom'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  Custom ({spaceLayouts.filter((l) => !l.isPreset).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSpaceFilter('presets')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    spaceFilter === 'presets'
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  Curated Presets ({spaceLayouts.filter((l) => l.isPreset).length})
+                </button>
+              </div>
+
+              {activePage !== 'space' && onNavigateToSpace && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onNavigateToSpace();
+                  }}
+                  className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Go to Space Canvas</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Space Layouts Cards List */}
+            <div className="space-y-3">
+              {spaceLayouts
+                .filter((layout) => {
+                  if (spaceFilter === 'custom') return !layout.isPreset;
+                  if (spaceFilter === 'presets') return layout.isPreset;
+                  return true;
+                })
+                .map((layout) => {
+                  const isActive = activeSpaceLayoutId === layout.id;
+                  const videos = layout.elements.filter((el) => el.type === 'video');
+                  const images = layout.elements.filter((el) => el.type === 'image');
+                  const notes = layout.elements.filter((el) => el.type === 'text');
+                  const buttons = layout.elements.filter((el) => el.type === 'button');
+
+                  return (
+                    <div
+                      key={layout.id}
+                      className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col gap-3 group ${
+                        isActive
+                          ? 'bg-amber-950/20 border-amber-500/50 shadow-lg shadow-amber-950/30'
+                          : 'bg-zinc-800/50 hover:bg-zinc-800/80 border-zinc-700/60'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs font-bold text-zinc-100">{layout.name}</h4>
+                            {layout.isPreset ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-500/30 font-semibold">
+                                Curated Preset
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/30 font-semibold">
+                                Custom Layout
+                              </span>
+                            )}
+                            {isActive && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Active on Space
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
+                            {layout.description || `${layout.elements.length} elements with custom layout`}
+                          </p>
+
+                          {/* Breakdown Tags */}
+                          <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-700/50 text-zinc-300 font-mono">
+                              {layout.elements.length} total elements
+                            </span>
+                            {videos.length > 0 && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-950/60 border border-rose-700/40 text-rose-300 flex items-center gap-1">
+                                <Film className="w-3 h-3" />
+                                <span>{videos.length} video{videos.length > 1 ? 's' : ''}</span>
+                              </span>
+                            )}
+                            {images.length > 0 && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-700/40 text-indigo-300 flex items-center gap-1">
+                                <Camera className="w-3 h-3" />
+                                <span>{images.length} frame{images.length > 1 ? 's' : ''}</span>
+                              </span>
+                            )}
+                            {notes.length > 0 && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-950/60 border border-amber-700/40 text-amber-300 flex items-center gap-1">
+                                <FileText className="w-3 h-3" />
+                                <span>{notes.length} note{notes.length > 1 ? 's' : ''}</span>
+                              </span>
+                            )}
+                            {buttons.length > 0 && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-950/60 border border-emerald-700/40 text-emerald-300 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" />
+                                <span>{buttons.length} button{buttons.length > 1 ? 's' : ''}</span>
+                              </span>
+                            )}
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-700/50 text-zinc-400 capitalize">
+                              Bg: {layout.background?.texturePreset || layout.background?.type || 'Default'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {confirmDeleteSpaceId === layout.id ? (
+                          <div className="flex items-center gap-2 bg-rose-950/80 border border-rose-500/50 px-3 py-1.5 rounded-xl animate-in fade-in shrink-0">
+                            <span className="text-[11px] text-rose-200 font-semibold">Delete layout?</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSpaceLayout(layout.id, layout.name)}
+                              className="px-2.5 py-1 text-[11px] font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteSpaceId(null)}
+                              className="px-2 py-1 text-[11px] font-medium text-zinc-300 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleApplySpaceLayout(layout, false)}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                                isActive
+                                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
+                                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
+                              }`}
+                              title="Apply this layout to the Space canvas"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>{isActive ? 'Reload' : 'Apply'}</span>
+                            </button>
+
+                            {onNavigateToSpace && (
+                              <button
+                                type="button"
+                                onClick={() => handleApplySpaceLayout(layout, true)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold transition-all shadow-sm shadow-amber-500/20 cursor-pointer"
+                                title="Apply layout and open Space Canvas"
+                              >
+                                <span>Open in Space</span>
+                                <ArrowUpRight className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleExportSpaceLayout(layout)}
+                              className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-300 hover:bg-zinc-700/60 transition-colors cursor-pointer"
+                              title="Export Space layout JSON"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+
+                            {!layout.isPreset && (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteSpaceId(layout.id)}
+                                className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-zinc-700/60 transition-colors cursor-pointer"
+                                title="Delete custom space layout"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
           </div>
         )}
 

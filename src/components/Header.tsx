@@ -9,10 +9,11 @@ import {
   Maximize,
   Minimize,
   EyeOff,
+  Bookmark,
 } from 'lucide-react';
 import { BookMarkerNav } from './navigation/BookMarkerNav';
 import { SearchBar } from './SearchBar';
-import { PageId, Bookmark, CalendarEvent, RSSItem } from '../types';
+import { PageId, Bookmark as BookmarkType, CalendarEvent, RSSItem } from '../types';
 
 interface HeaderProps {
   activePage?: PageId;
@@ -22,12 +23,13 @@ interface HeaderProps {
   onToggleEditMode: () => void;
   onToggleCleanMode: () => void;
   onOpenWidgetCustomizer: () => void;
+  onOpenSpacePresets?: () => void;
   onOpenThemeCustomizer: () => void;
   onOpenSettings: () => void;
   // Browser Search Bar Props
   defaultEngineId: string;
   onEngineChange: (id: string) => void;
-  bookmarks: Bookmark[];
+  bookmarks: BookmarkType[];
   events: CalendarEvent[];
   rssItems: RSSItem[];
   searchHistory: string[];
@@ -44,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleEditMode,
   onToggleCleanMode,
   onOpenWidgetCustomizer,
+  onOpenSpacePresets,
   onOpenThemeCustomizer,
   onOpenSettings,
   defaultEngineId,
@@ -151,6 +154,19 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
           </>
+        )}
+
+        {/* Space Page Specific Controls */}
+        {activePage === 'space' && onOpenSpacePresets && (
+          <button
+            type="button"
+            onClick={onOpenSpacePresets}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-xs font-semibold text-amber-300 hover:text-amber-200 border border-amber-500/30 transition-colors cursor-pointer"
+            title="Space Presets & Custom Layouts"
+          >
+            <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Presets</span>
+          </button>
         )}
 
         {/* Theme Customizer Trigger */}
