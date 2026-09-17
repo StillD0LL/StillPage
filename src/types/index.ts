@@ -402,3 +402,6 @@ export interface UiSoundSettings {
   pitchVariation: boolean; // subtle natural pitch modulation
 }
 
+export * from './space';
+
+

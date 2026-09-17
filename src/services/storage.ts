@@ -22,9 +22,10 @@ import {
   PageId,
   SpaceElement,
   SpaceBackgroundConfig,
+  SpaceLayout,
 } from '../types';
 import { DEFAULT_START_CONFIG } from '../utils/startDefaults';
-import { DEFAULT_SPACE_BACKGROUND } from '../utils/spaceDefaults';
+import { DEFAULT_SPACE_BACKGROUND, DEFAULT_SPACE_LAYOUTS } from '../utils/spaceDefaults';
 
 export const DEFAULT_THEME: DashboardTheme = {
   mode: 'dark',
@@ -892,6 +893,8 @@ const STORAGE_KEYS = {
   SPACE_BACKGROUND: 'nexus_space_background',
   SPACE_MODE: 'nexus_space_mode',
   SPACE_AUTOPLAY_MEDIA: 'nexus_space_autoplay_media',
+  SPACE_SAVED_LAYOUTS: 'nexus_space_saved_layouts',
+  SPACE_ACTIVE_LAYOUT_ID: 'nexus_space_active_layout_id',
 };
 
 export const storage = {
@@ -1465,6 +1468,11 @@ export const storage = {
       layoutPresets: this.getCustomLayoutPresets(),
       themePresets: this.getCustomThemePresets(),
       uiSoundSettings: this.getUiSoundSettings(),
+      spaceElements: this.getSpaceElements(),
+      spaceBackground: this.getSpaceBackground(),
+      spaceSavedLayouts: this.getSavedSpaceLayouts(),
+      spaceActiveLayoutId: this.getActiveSpaceLayoutId(),
+      spaceAutoplayMedia: this.getSpaceAutoplayMedia(),
     };
     return JSON.stringify(payload, null, 2);
   },
@@ -1489,6 +1497,21 @@ export const storage = {
       }
       if (data.themePresets && Array.isArray(data.themePresets)) {
         this.saveCustomThemePresets(data.themePresets);
+      }
+      if (data.spaceElements && Array.isArray(data.spaceElements)) {
+        this.saveSpaceElements(data.spaceElements);
+      }
+      if (data.spaceBackground) {
+        this.saveSpaceBackground(data.spaceBackground);
+      }
+      if (data.spaceSavedLayouts && Array.isArray(data.spaceSavedLayouts)) {
+        localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(data.spaceSavedLayouts));
+      }
+      if (data.spaceActiveLayoutId) {
+        this.setActiveSpaceLayoutId(data.spaceActiveLayoutId);
+      }
+      if (typeof data.spaceAutoplayMedia === 'boolean') {
+        this.saveSpaceAutoplayMedia(data.spaceAutoplayMedia);
       }
       return true;
     } catch (e) {
@@ -1516,6 +1539,7 @@ export const storage = {
     localStorage.removeItem(STORAGE_KEYS.WRITING_DOCUMENTS);
     localStorage.removeItem(STORAGE_KEYS.WRITING_SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.UI_SOUND_SETTINGS);
+    this.resetSpaceData();
   },
 
   getActivePage(): PageId {
@@ -1822,12 +1846,85 @@ export const storage = {
     }
   },
 
+  getSavedSpaceLayouts(): SpaceLayout[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS);
+      if (data) {
+        const parsed: SpaceLayout[] = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Storage read failed for saved space layouts', e);
+    }
+    // Seed with curated presets
+    const defaults = [...DEFAULT_SPACE_LAYOUTS];
+    try {
+      localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(defaults));
+    } catch {}
+    return defaults;
+  },
+
+  saveSpaceLayout(layout: SpaceLayout): void {
+    try {
+      const existing = this.getSavedSpaceLayouts();
+      const index = existing.findIndex((l) => l.id === layout.id);
+      let updated: SpaceLayout[];
+      if (index >= 0) {
+        updated = [...existing];
+        updated[index] = { ...layout, updatedAt: Date.now() };
+      } else {
+        updated = [layout, ...existing];
+      }
+      localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID, layout.id);
+    } catch (e) {
+      console.warn('Failed to save space layout', e);
+    }
+  },
+
+  deleteSpaceLayout(id: string): void {
+    try {
+      const existing = this.getSavedSpaceLayouts();
+      const updated = existing.filter((l) => l.id !== id);
+      const finalLayouts = updated.length > 0 ? updated : [...DEFAULT_SPACE_LAYOUTS];
+      localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(finalLayouts));
+      const activeId = this.getActiveSpaceLayoutId();
+      if (activeId === id) {
+        localStorage.setItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID, finalLayouts[0].id);
+      }
+    } catch (e) {
+      console.warn('Failed to delete space layout', e);
+    }
+  },
+
+  getActiveSpaceLayoutId(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID);
+    } catch {
+      return null;
+    }
+  },
+
+  setActiveSpaceLayoutId(id: string | null): void {
+    try {
+      if (id) {
+        localStorage.setItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID, id);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID);
+      }
+    } catch {}
+  },
+
   resetSpaceData(): void {
     try {
       localStorage.removeItem(STORAGE_KEYS.SPACE_ELEMENTS);
       localStorage.removeItem(STORAGE_KEYS.SPACE_BACKGROUND);
       localStorage.removeItem(STORAGE_KEYS.SPACE_MODE);
       localStorage.removeItem(STORAGE_KEYS.SPACE_AUTOPLAY_MEDIA);
+      localStorage.removeItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS);
+      localStorage.removeItem(STORAGE_KEYS.SPACE_ACTIVE_LAYOUT_ID);
     } catch (e) {
       console.warn('Failed to reset space data', e);
     }

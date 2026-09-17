@@ -30,7 +30,7 @@ export interface TextBoxElement extends BaseSpaceElement {
 
 export type TapeStyle = 'dual-corner' | 'top-center' | 'scotch' | 'none';
 export type TapeColor = 'crepe' | 'washi-pink' | 'washi-mint' | 'kraft' | 'neon';
-export type PhotoStyle = 'polaroid' | 'classic' | 'film' | 'minimal';
+export type PhotoStyle = 'polaroid' | 'classic' | 'film' | 'minimal' | 'media-player';
 export type PhotoAspectRatio = '1:1' | '4:3' | '3:2' | '16:9';
 
 export interface ImageFrameElement extends BaseSpaceElement {
@@ -51,6 +51,10 @@ export interface VideoPlayerElement extends BaseSpaceElement {
   autoplay: boolean;
   muted: boolean;
   loop: boolean;
+  isLocal?: boolean;
+  localVideoId?: string;
+  localFileName?: string;
+  localFileSize?: number;
 }
 
 export type ButtonActionType = 'link' | 'page' | 'cheer' | 'quote';
@@ -81,4 +85,15 @@ export interface SpaceBackgroundConfig {
   blur: number; // 0 to 32 pixels
   showGrid: boolean;
   gridType: 'dots' | 'lines' | 'none';
+}
+
+export interface SpaceLayout {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  elements: SpaceElement[];
+  background: SpaceBackgroundConfig;
+  description?: string;
+  isPreset?: boolean;
 }

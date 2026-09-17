@@ -24,6 +24,9 @@ import {
   AlignRight,
   Play,
   Film,
+  HardDrive,
+  Globe,
+  FileVideo,
 } from 'lucide-react';
 import {
   SpaceElement,
@@ -42,9 +45,10 @@ import {
   ButtonStyleVariant,
   ButtonActionType,
 } from '../../types/space';
-import { CURATED_PHOTOS, CURATED_VIDEOS } from '../../utils/spaceDefaults';
+import { CURATED_PHOTOS, CURATED_VIDEOS, CURATED_DIRECT_VIDEOS } from '../../utils/spaceDefaults';
 import { compressImageFile } from '../../utils/imageCompressor';
 import { uiSound } from '../../services/uiSound';
+import { mediaStorage } from '../../services/mediaStorage';
 
 interface SpacePropertiesPanelProps {
   element: SpaceElement | null;
@@ -76,6 +80,7 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
   onToggleGlobalAutoplay,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen || !element) return null;
 
@@ -103,6 +108,28 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
         }
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleVideoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      uiSound.playPlace();
+      const { id, url, size } = await mediaStorage.saveLocalVideo(file);
+      const cleanTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      handleUpdate({
+        videoUrl: url,
+        sourceType: 'direct',
+        isLocal: true,
+        localVideoId: id,
+        localFileName: file.name,
+        localFileSize: size,
+        title: cleanTitle || 'Local Video Player',
+      } as Partial<VideoPlayerElement>);
+    } catch (err) {
+      console.error('Failed to upload local video', err);
     }
   };
 
@@ -625,6 +652,7 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
                 <div className="grid grid-cols-2 gap-1.5">
                   {(
                     [
+                      { id: 'media-player', label: 'Media Player (Video Match)' },
                       { id: 'polaroid', label: 'Polaroid' },
                       { id: 'classic', label: 'White Border' },
                       { id: 'film', label: 'Film Frame' },
@@ -639,7 +667,7 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
                         handleUpdate({ photoStyle: ps.id } as Partial<ImageFrameElement>);
                       }}
                       className={`px-2 py-1.5 rounded-lg text-[10px] border cursor-pointer transition-colors text-left ${
-                        (element as ImageFrameElement).photoStyle === ps.id
+                        ((element as ImageFrameElement).photoStyle || 'polaroid') === ps.id
                           ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 font-medium'
                           : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
                       }`}
@@ -655,6 +683,14 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
           {/* VIDEO PLAYER PROPERTIES */}
           {element.type === 'video' && (
             <div className="space-y-3">
+              <input
+                ref={videoFileInputRef}
+                type="file"
+                accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*"
+                className="hidden"
+                onChange={handleVideoFileUpload}
+              />
+
               {/* Title */}
               <div>
                 <label className="text-[10px] text-zinc-400 block mb-1">Player Title</label>
@@ -668,25 +704,105 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
                 />
               </div>
 
-              {/* URL */}
+              {/* Local Video Option */}
+              <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-800/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-amber-300 flex items-center gap-1.5">
+                    <HardDrive className="w-3.5 h-3.5 text-amber-400" />
+                    Local Video on Device
+                  </span>
+                  {(element as VideoPlayerElement).isLocal && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                      Loaded
+                    </span>
+                  )}
+                </div>
+
+                {(element as VideoPlayerElement).isLocal && (element as VideoPlayerElement).localFileName && (
+                  <div className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-800 text-[10px] space-y-0.5">
+                    <p className="text-zinc-200 font-mono truncate font-medium">
+                      {(element as VideoPlayerElement).localFileName}
+                    </p>
+                    <p className="text-zinc-500 text-[9px]">
+                      {((element as VideoPlayerElement).localFileSize || 0) > 0
+                        ? `${(((element as VideoPlayerElement).localFileSize || 0) / (1024 * 1024)).toFixed(1)} MB • IndexedDB persistent storage`
+                        : 'Stored locally'}
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    uiSound.playClick();
+                    videoFileInputRef.current?.click();
+                  }}
+                  className="w-full py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <Upload className="w-3 h-3" />
+                  <span>
+                    {(element as VideoPlayerElement).isLocal
+                      ? 'Replace Local Video File'
+                      : 'Upload Local Video File (MP4, WebM)'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Video Address / URL */}
               <div>
                 <label className="text-[10px] text-zinc-400 block mb-1">
-                  YouTube / Video URL
+                  Video Address or YouTube URL
                 </label>
                 <input
                   type="text"
                   value={(element as VideoPlayerElement).videoUrl}
-                  onChange={(e) =>
-                    handleUpdate({ videoUrl: e.target.value } as Partial<VideoPlayerElement>)
-                  }
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const isYt = val.includes('youtube.com') || val.includes('youtu.be');
+                    handleUpdate({
+                      videoUrl: val,
+                      sourceType: isYt ? 'youtube' : 'direct',
+                      isLocal: false,
+                    } as Partial<VideoPlayerElement>);
+                  }}
+                  placeholder="Direct video address (https://.../video.mp4) or YouTube"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono text-[11px]"
                 />
               </div>
 
-              {/* Ambient Presets */}
+              {/* Curated Direct Video Addresses (MP4) */}
               <div>
-                <label className="text-[10px] text-zinc-400 block mb-1">Ambient Presets</label>
+                <label className="text-[10px] text-zinc-400 block mb-1 font-medium text-emerald-400">
+                  Direct Video Addresses (Ad-Free MP4)
+                </label>
+                <div className="space-y-1">
+                  {CURATED_DIRECT_VIDEOS.map((vid) => (
+                    <button
+                      key={vid.id}
+                      type="button"
+                      onClick={() => {
+                        uiSound.playClick();
+                        handleUpdate({
+                          videoUrl: vid.url,
+                          title: vid.title,
+                          sourceType: 'direct',
+                          isLocal: false,
+                        } as Partial<VideoPlayerElement>);
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 hover:text-white flex items-center justify-between cursor-pointer transition-colors text-left"
+                    >
+                      <span className="truncate">{vid.title}</span>
+                      <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                        MP4
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ambient Presets (YouTube) */}
+              <div>
+                <label className="text-[10px] text-zinc-400 block mb-1">Curated YouTube Streams</label>
                 <div className="space-y-1">
                   {CURATED_VIDEOS.map((vid) => (
                     <button
@@ -697,6 +813,8 @@ export const SpacePropertiesPanel: React.FC<SpacePropertiesPanelProps> = ({
                         handleUpdate({
                           videoUrl: vid.url,
                           title: vid.title,
+                          sourceType: 'youtube',
+                          isLocal: false,
                         } as Partial<VideoPlayerElement>);
                       }}
                       className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 hover:text-white flex items-center justify-between cursor-pointer transition-colors text-left"

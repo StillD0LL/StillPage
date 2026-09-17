@@ -53,7 +53,7 @@ import { EventModal } from './components/modals/EventModal';
 import { WidgetCustomizerModal } from './components/modals/WidgetCustomizerModal';
 import { ThemeCustomizerModal } from './components/modals/ThemeCustomizerModal';
 import { ArticleReaderModal } from './components/modals/ArticleReaderModal';
-import { SettingsModal } from './components/modals/SettingsModal';
+import { SettingsModal, SettingsTab } from './components/modals/SettingsModal';
 
 export default function App() {
   // Global State with LocalStorage Persistence
@@ -81,6 +81,8 @@ export default function App() {
   const [widgetModalTab, setWidgetModalTab] = useState<'widgets' | 'presets'>('widgets');
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general');
+  const [spaceDataVersion, setSpaceDataVersion] = useState(0);
   const [readingArticle, setReadingArticle] = useState<RSSItem | null>(null);
   const [toastNotification, setToastNotification] = useState<string | null>(null);
 
@@ -181,6 +183,12 @@ export default function App() {
     setGalleryImages(storage.getGalleryImages());
     setSearchHistory(storage.getSearchHistory());
     setDefaultEngineId(storage.getDefaultEngine());
+    setSpaceDataVersion((v) => v + 1);
+  };
+
+  const handleOpenSettings = (tab: SettingsTab = 'general') => {
+    setSettingsInitialTab(tab);
+    setIsSettingsModalOpen(true);
   };
 
   // Search History Handler
@@ -688,7 +696,7 @@ export default function App() {
         onToggleCleanMode={toggleCleanMode}
         onOpenWidgetCustomizer={() => setIsWidgetModalOpen(true)}
         onOpenThemeCustomizer={() => setIsThemeModalOpen(true)}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenSettings={() => handleOpenSettings('general')}
         defaultEngineId={defaultEngineId}
         onEngineChange={handleEngineChange}
         bookmarks={bookmarks}
@@ -726,7 +734,11 @@ export default function App() {
         </div>
       ) : activePage === 'space' ? (
         <div className="relative z-10 flex-1 flex flex-col h-[calc(100vh-56px)] overflow-hidden">
-          <SpacePage onNavigate={handleSelectPage} />
+          <SpacePage
+            onNavigate={handleSelectPage}
+            onOpenSettings={handleOpenSettings}
+            dataVersion={spaceDataVersion}
+          />
         </div>
       ) : (
         /* Main Dashboard Container Content */
@@ -875,6 +887,7 @@ export default function App() {
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         onDataReload={handleDataReload}
+        initialTab={settingsInitialTab}
       />
     </div>
   );

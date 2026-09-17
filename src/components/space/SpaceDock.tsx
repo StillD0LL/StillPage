@@ -10,12 +10,16 @@ import {
   RotateCcw,
   Plus,
   HelpCircle,
+  Bookmark,
+  ChevronRight,
+  Settings,
 } from 'lucide-react';
 import { SpaceElementType } from '../../types/space';
 import { uiSound } from '../../services/uiSound';
 
 interface SpaceDockProps {
   onSpawnElement: (type: SpaceElementType, clientX?: number, clientY?: number) => void;
+  onOpenMediaModal?: () => void;
   onOpenBackgroundCustomizer: () => void;
   isViewMode: boolean;
   onToggleViewMode: () => void;
@@ -24,6 +28,7 @@ interface SpaceDockProps {
   elementCount: number;
   isAutoPlayMedia?: boolean;
   onToggleAutoPlayMedia?: () => void;
+  onOpenSettings?: () => void;
 }
 
 interface DockToolItem {
@@ -72,6 +77,7 @@ const DOCK_ELEMENTS: DockToolItem[] = [
 
 export const SpaceDock: React.FC<SpaceDockProps> = ({
   onSpawnElement,
+  onOpenMediaModal,
   onOpenBackgroundCustomizer,
   isViewMode,
   onToggleViewMode,
@@ -80,6 +86,7 @@ export const SpaceDock: React.FC<SpaceDockProps> = ({
   elementCount,
   isAutoPlayMedia = false,
   onToggleAutoPlayMedia,
+  onOpenSettings,
 }) => {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
@@ -130,6 +137,35 @@ export const SpaceDock: React.FC<SpaceDockProps> = ({
             </div>
           );
         })}
+
+        {/* Dedicated "Add Media" Button (Local Video, URL, or Custom Frame Photo) */}
+        {onOpenMediaModal && (
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={() => {
+                uiSound.playClick();
+                onOpenMediaModal();
+              }}
+              onMouseEnter={() => setActiveTooltip('Add Media')}
+              onMouseLeave={() => setActiveTooltip(null)}
+              className="w-12 h-12 rounded-xl flex flex-col items-center justify-center border transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 shadow-lg text-indigo-400 group-hover:text-indigo-300 bg-indigo-500/15 border-indigo-500/40"
+              title="Add Media: Load Local Video, Direct Video Address, or Custom Frame Photo"
+            >
+              <Plus className="w-5 h-5 transition-transform group-hover:scale-110 text-indigo-300" />
+              <span className="text-[9px] font-semibold tracking-tight mt-0.5 opacity-90 text-indigo-200">
+                Media
+              </span>
+            </button>
+
+            {activeTooltip === 'Add Media' && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-100 text-[11px] whitespace-nowrap shadow-xl pointer-events-none z-50">
+                <p className="font-semibold">Add Media</p>
+                <p className="text-[10px] text-zinc-400 font-normal">Load local video, web address, or custom photo</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Subtle Vertical Divider */}
@@ -137,6 +173,21 @@ export const SpaceDock: React.FC<SpaceDockProps> = ({
 
       {/* 2. Utility & Control Icons */}
       <div className="flex items-center gap-1.5">
+        {/* Settings, Custom Layouts & Backup Menu Trigger */}
+        {onOpenSettings && (
+          <button
+            type="button"
+            onClick={() => {
+              uiSound.playClick();
+              onOpenSettings();
+            }}
+            className="w-10 h-10 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/10 flex items-center justify-center transition-all hover:scale-105 cursor-pointer shadow-md"
+            title="Settings, Custom Layouts & Backup"
+          >
+            <Settings className="w-4 h-4 text-zinc-400 group-hover:text-white" />
+          </button>
+        )}
+
         {/* Background Customizer Button */}
         <button
           type="button"

@@ -16,6 +16,12 @@ import {
   Save,
   Film,
   Play,
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  FolderPlus,
+  Repeat,
+  Settings,
 } from 'lucide-react';
 import {
   SpaceElement,
@@ -27,6 +33,9 @@ import {
   SpaceBackgroundConfig,
   ButtonActionType,
   PageId,
+  SpaceLayout,
+  PhotoStyle,
+  PhotoAspectRatio,
 } from '../../types';
 import {
   createDefaultTextBox,
@@ -37,6 +46,8 @@ import {
   BACKGROUND_TEXTURE_PRESETS,
 } from '../../utils/spaceDefaults';
 import { storage } from '../../services/storage';
+import { mediaStorage } from '../../services/mediaStorage';
+import { compressImageFile } from '../../utils/imageCompressor';
 import { uiSound } from '../../services/uiSound';
 import { SpaceElementWrapper } from './SpaceElementWrapper';
 import { TextBoxElementView } from './elements/TextBoxElementView';
@@ -46,12 +57,15 @@ import { CustomButtonElementView } from './elements/CustomButtonElementView';
 import { SpaceDock } from './SpaceDock';
 import { SpaceBackgroundModal } from './SpaceBackgroundModal';
 import { SpacePropertiesPanel } from './SpacePropertiesPanel';
+import { SpaceMediaModal } from './SpaceMediaModal';
 
 interface SpacePageProps {
   onNavigate?: (pageId: PageId) => void;
+  onOpenSettings?: (initialTab?: 'space-layouts' | 'general' | 'backup' | 'shortcuts') => void;
+  dataVersion?: number;
 }
 
-export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
+export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings, dataVersion }) => {
   // 1. Elements State
   const [elements, setElements] = useState<SpaceElement[]>(() => {
     return storage.getSpaceElements();
@@ -80,6 +94,9 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
   // 7. Background Modal
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
 
+  // 7b. Media Manager Modal (Local Video & Web Address)
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+
   // 8. Action Feedback Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -88,7 +105,27 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
     return storage.getSpaceAutoplayMedia();
   });
 
+  // 10. Saved Custom Layouts & Cycling
+  const [savedLayouts, setSavedLayouts] = useState<SpaceLayout[]>(() => {
+    return storage.getSavedSpaceLayouts();
+  });
+  const [activeLayoutId, setActiveLayoutId] = useState<string | null>(() => {
+    return storage.getActiveSpaceLayoutId() || (storage.getSavedSpaceLayouts()[0]?.id ?? null);
+  });
+
+  const activeLayout = savedLayouts.find((l) => l.id === activeLayoutId) || savedLayouts[0] || null;
+  const activeLayoutIndex = savedLayouts.findIndex((l) => l.id === (activeLayout?.id ?? ''));
+
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Sync external state updates (e.g. from Settings & Backup modal)
+  useEffect(() => {
+    setElements(storage.getSpaceElements());
+    setBackgroundConfig(storage.getSpaceBackground());
+    setSavedLayouts(storage.getSavedSpaceLayouts());
+    setActiveLayoutId(storage.getActiveSpaceLayoutId());
+    setIsAutoPlayMedia(storage.getSpaceAutoplayMedia());
+  }, [dataVersion]);
 
   // Save changes to storage (Continuous auto-save watcher)
   useEffect(() => {
@@ -123,6 +160,93 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
     });
   }, []);
 
+  // Layout Actions: Save, Load, Delete, Cycle
+  const handleSaveCurrentLayout = useCallback(
+    (name: string, description?: string) => {
+      const newLayout: SpaceLayout = {
+        id: `layout-custom-${Date.now()}`,
+        name,
+        description,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        elements: JSON.parse(JSON.stringify(elements)),
+        background: { ...backgroundConfig },
+        isPreset: false,
+      };
+      storage.saveSpaceLayout(newLayout);
+      const updated = storage.getSavedSpaceLayouts();
+      setSavedLayouts(updated);
+      setActiveLayoutId(newLayout.id);
+      storage.setActiveSpaceLayoutId(newLayout.id);
+      setToastMessage(`Custom layout "${name}" with media saved!`);
+      setTimeout(() => setToastMessage(null), 3500);
+    },
+    [elements, backgroundConfig]
+  );
+
+  const handleLoadLayout = useCallback((layout: SpaceLayout) => {
+    uiSound.playPlace();
+    const clonedElements = JSON.parse(JSON.stringify(layout.elements));
+    setElements(clonedElements);
+    setBackgroundConfig({ ...layout.background });
+    storage.saveSpaceElements(clonedElements);
+    storage.saveSpaceBackground(layout.background);
+    storage.setActiveSpaceLayoutId(layout.id);
+    setActiveLayoutId(layout.id);
+    setSelectedId(null);
+    setToastMessage(`Loaded layout: ${layout.name}`);
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  const handleDeleteLayout = useCallback(
+    (id: string) => {
+      storage.deleteSpaceLayout(id);
+      const updated = storage.getSavedSpaceLayouts();
+      setSavedLayouts(updated);
+      if (activeLayoutId === id) {
+        const fallback = updated[0]?.id || null;
+        setActiveLayoutId(fallback);
+        storage.setActiveSpaceLayoutId(fallback);
+      }
+      setToastMessage('Layout deleted');
+      setTimeout(() => setToastMessage(null), 2500);
+    },
+    [activeLayoutId]
+  );
+
+  const handleCycleLayout = useCallback(
+    (direction: 'next' | 'prev' = 'next') => {
+      if (savedLayouts.length === 0) return;
+      uiSound.playPlace();
+      const currentIndex = savedLayouts.findIndex((l) => l.id === activeLayoutId);
+      let nextIndex: number;
+      if (currentIndex === -1) {
+        nextIndex = 0;
+      } else if (direction === 'next') {
+        nextIndex = (currentIndex + 1) % savedLayouts.length;
+      } else {
+        nextIndex = (currentIndex - 1 + savedLayouts.length) % savedLayouts.length;
+      }
+
+      const nextLayout = savedLayouts[nextIndex];
+      if (nextLayout) {
+        const clonedElements = JSON.parse(JSON.stringify(nextLayout.elements));
+        setElements(clonedElements);
+        setBackgroundConfig({ ...nextLayout.background });
+        storage.saveSpaceElements(clonedElements);
+        storage.saveSpaceBackground(nextLayout.background);
+        storage.setActiveSpaceLayoutId(nextLayout.id);
+        setActiveLayoutId(nextLayout.id);
+        setSelectedId(null);
+        setToastMessage(
+          `Switched to layout: ${nextLayout.name} (${nextIndex + 1}/${savedLayouts.length})`
+        );
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+    },
+    [savedLayouts, activeLayoutId]
+  );
+
   // When selection changes, if an element is selected and properties was open or user wants it, keep it open
   const selectedElement = elements.find((el) => el.id === selectedId) || null;
 
@@ -149,12 +273,18 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
           e.preventDefault();
           handleDuplicate(selectedId);
         }
+      } else if (e.key.toLowerCase() === 'l') {
+        // 'L' or Alt+L cycles to next layout
+        if (e.altKey || (!e.ctrlKey && !e.metaKey)) {
+          e.preventDefault();
+          handleCycleLayout('next');
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, isViewMode]);
+  }, [selectedId, isViewMode, handleCycleLayout]);
 
   // Spawn Element at specific coordinates (or viewport center)
   const handleSpawnElement = useCallback(
@@ -205,18 +335,282 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
     [elements]
   );
 
-  // Drag-and-Drop from Dock onto Canvas
+  // Add Media Element from SpaceMediaModal
+  const handleAddVideoFromModal = useCallback(
+    (videoData: {
+      videoUrl: string;
+      sourceType: 'youtube' | 'direct';
+      title?: string;
+      isLocal?: boolean;
+      localVideoId?: string;
+      localFileName?: string;
+      localFileSize?: number;
+    }) => {
+      let spawnX = 200;
+      let spawnY = 150;
+      if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        spawnX = Math.max(40, Math.round(rect.width / 2 - 190 + (Math.random() * 40 - 20)));
+        spawnY = Math.max(40, Math.round(rect.height / 2 - 120 + (Math.random() * 40 - 20)));
+      }
+
+      const maxZ = elements.reduce((acc, curr) => Math.max(acc, curr.zIndex || 10), 10);
+      const newVideo: VideoPlayerElement = {
+        id: `video-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'video',
+        x: spawnX,
+        y: spawnY,
+        width: 380,
+        height: 240,
+        rotation: 0,
+        zIndex: maxZ + 1,
+        createdAt: Date.now(),
+        videoUrl: videoData.videoUrl,
+        sourceType: videoData.sourceType,
+        title: videoData.title,
+        autoplay: true,
+        muted: true,
+        loop: true,
+        isLocal: videoData.isLocal,
+        localVideoId: videoData.localVideoId,
+        localFileName: videoData.localFileName,
+        localFileSize: videoData.localFileSize,
+      };
+
+      setElements((prev) => {
+        const next = [...prev, newVideo];
+        storage.saveSpaceElements(next);
+        return next;
+      });
+      setSelectedId(newVideo.id);
+      setIsPropertiesOpen(true);
+      uiSound.playSpawn();
+    },
+    [elements]
+  );
+
+  const handleAddImageFromModal = useCallback(
+    (imageData: {
+      imageUrl: string;
+      caption?: string;
+      photoStyle: PhotoStyle;
+      aspectRatio: PhotoAspectRatio;
+    }) => {
+      let spawnX = 200;
+      let spawnY = 150;
+      if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        spawnX = Math.max(40, Math.round(rect.width / 2 - 140 + (Math.random() * 40 - 20)));
+        spawnY = Math.max(40, Math.round(rect.height / 2 - 120 + (Math.random() * 40 - 20)));
+      }
+
+      const maxZ = elements.reduce((acc, curr) => Math.max(acc, curr.zIndex || 10), 10);
+      const newImage: ImageFrameElement = {
+        id: `image-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'image',
+        x: spawnX,
+        y: spawnY,
+        width: 280,
+        rotation: Math.round(Math.random() * 6 - 3),
+        zIndex: maxZ + 1,
+        createdAt: Date.now(),
+        imageUrl: imageData.imageUrl,
+        caption: imageData.caption,
+        tapeStyle: 'dual-corner',
+        tapeColor: 'washi-pink',
+        photoStyle: imageData.photoStyle,
+        aspectRatio: imageData.aspectRatio,
+      };
+
+      setElements((prev) => {
+        const next = [...prev, newImage];
+        storage.saveSpaceElements(next);
+        return next;
+      });
+      setSelectedId(newImage.id);
+      setIsPropertiesOpen(true);
+      uiSound.playSpawn();
+    },
+    [elements]
+  );
+
+  // Drag-and-Drop from Dock onto Canvas, or file/URL drop from desktop/browser
   const handleCanvasDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   };
 
-  const handleCanvasDrop = (e: React.DragEvent) => {
+  const handleCanvasDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+
+    // 1. Drag from Dock buttons
     const type = e.dataTransfer.getData('application/space-element-type') as SpaceElementType;
     if (type) {
       uiSound.playPlace();
       handleSpawnElement(type, e.clientX, e.clientY);
+      return;
+    }
+
+    // 2. Drag file from desktop (Video or Image)
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const dropX = rect ? Math.max(20, e.clientX - rect.left - 140) : 200;
+      const dropY = rect ? Math.max(20, e.clientY - rect.top - 100) : 150;
+      const maxZ = elements.reduce((acc, curr) => Math.max(acc, curr.zIndex || 10), 10);
+
+      // Video File: MP4, WebM, MOV, Ogg
+      if (file.type.startsWith('video/')) {
+        try {
+          uiSound.playPlace();
+          const { id, url, size } = await mediaStorage.saveLocalVideo(file);
+          const cleanTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+
+          const newVideo: VideoPlayerElement = {
+            id: `video-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'video',
+            x: dropX,
+            y: dropY,
+            width: 380,
+            height: 240,
+            rotation: 0,
+            zIndex: maxZ + 1,
+            createdAt: Date.now(),
+            videoUrl: url,
+            sourceType: 'direct',
+            title: cleanTitle,
+            autoplay: true,
+            muted: true,
+            loop: true,
+            isLocal: true,
+            localVideoId: id,
+            localFileName: file.name,
+            localFileSize: size,
+          };
+
+          setElements((prev) => {
+            const next = [...prev, newVideo];
+            storage.saveSpaceElements(next);
+            return next;
+          });
+          setSelectedId(newVideo.id);
+          setIsPropertiesOpen(true);
+        } catch (err) {
+          console.error('Failed to load dropped video:', err);
+        }
+        return;
+      }
+
+      // Image File: JPG, PNG, WEBP, GIF, SVG
+      if (file.type.startsWith('image/')) {
+        try {
+          uiSound.playPlace();
+          const compressed = await compressImageFile(file, 1400, 1400, 0.88);
+          const newImg: ImageFrameElement = {
+            id: `image-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'image',
+            x: dropX,
+            y: dropY,
+            width: 280,
+            rotation: Math.round(Math.random() * 6 - 3),
+            zIndex: maxZ + 1,
+            createdAt: Date.now(),
+            imageUrl: compressed,
+            caption: file.name.replace(/\.[^/.]+$/, ''),
+            tapeStyle: 'dual-corner',
+            tapeColor: 'washi-pink',
+            photoStyle: 'media-player',
+            aspectRatio: '16:9',
+          };
+          setElements((prev) => {
+            const next = [...prev, newImg];
+            storage.saveSpaceElements(next);
+            return next;
+          });
+          setSelectedId(newImg.id);
+          setIsPropertiesOpen(true);
+        } catch (err) {
+          console.error('Failed to load dropped image:', err);
+        }
+        return;
+      }
+    }
+
+    // 3. Drag link or direct web address
+    const textUrl = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text/uri-list');
+    if (textUrl && (textUrl.startsWith('http://') || textUrl.startsWith('https://'))) {
+      const trimmed = textUrl.trim();
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const dropX = rect ? Math.max(20, e.clientX - rect.left - 140) : 200;
+      const dropY = rect ? Math.max(20, e.clientY - rect.top - 100) : 150;
+      const maxZ = elements.reduce((acc, curr) => Math.max(acc, curr.zIndex || 10), 10);
+
+      const isVideo =
+        trimmed.includes('youtube.com') ||
+        trimmed.includes('youtu.be') ||
+        trimmed.endsWith('.mp4') ||
+        trimmed.endsWith('.webm') ||
+        trimmed.endsWith('.ogg') ||
+        trimmed.endsWith('.mov') ||
+        trimmed.includes('/video/');
+
+      if (isVideo) {
+        uiSound.playPlace();
+        const isYt = trimmed.includes('youtube.com') || trimmed.includes('youtu.be');
+        const newVideo: VideoPlayerElement = {
+          id: `video-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: 'video',
+          x: dropX,
+          y: dropY,
+          width: 380,
+          height: 240,
+          rotation: 0,
+          zIndex: maxZ + 1,
+          createdAt: Date.now(),
+          videoUrl: trimmed,
+          sourceType: isYt ? 'youtube' : 'direct',
+          title: isYt ? 'YouTube Video Stream' : 'Direct Web Video Stream',
+          autoplay: true,
+          muted: true,
+          loop: true,
+          isLocal: false,
+        };
+        setElements((prev) => {
+          const next = [...prev, newVideo];
+          storage.saveSpaceElements(next);
+          return next;
+        });
+        setSelectedId(newVideo.id);
+        setIsPropertiesOpen(true);
+        return;
+      } else {
+        uiSound.playPlace();
+        const newImg: ImageFrameElement = {
+          id: `image-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: 'image',
+          x: dropX,
+          y: dropY,
+          width: 280,
+          rotation: Math.round(Math.random() * 6 - 3),
+          zIndex: maxZ + 1,
+          createdAt: Date.now(),
+          imageUrl: trimmed,
+          caption: 'Web Image',
+          tapeStyle: 'dual-corner',
+          tapeColor: 'washi-pink',
+          photoStyle: 'media-player',
+          aspectRatio: '16:9',
+        };
+        setElements((prev) => {
+          const next = [...prev, newImg];
+          storage.saveSpaceElements(next);
+          return next;
+        });
+        setSelectedId(newImg.id);
+        setIsPropertiesOpen(true);
+        return;
+      }
     }
   };
 
@@ -381,8 +775,8 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
         />
       )}
 
-      {/* Top Banner / Canvas Info with Live Auto-Save Status */}
-      <div className="absolute top-4 left-6 z-30 flex items-center gap-2 select-none">
+      {/* Top Banner / Canvas Info with Live Auto-Save Status & Layout Cycler */}
+      <div className="absolute top-4 left-6 z-30 flex items-center gap-2.5 select-none flex-wrap">
         <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 text-xs text-zinc-200 shadow-xl">
           <span className="font-semibold tracking-wide flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-indigo-400" />
@@ -429,8 +823,22 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Top Right Controls (Properties toggle, Auto-play setting & View Mode toggle) */}
+      {/* Top Right Controls (Properties toggle, Auto-play setting, Settings, & View Mode toggle) */}
       <div className="absolute top-4 right-6 z-40 flex items-center gap-2">
+        {/* Settings, Custom Space Layouts & Backup Trigger */}
+        <button
+          type="button"
+          onClick={() => {
+            uiSound.playClick();
+            onOpenSettings?.('space-layouts');
+          }}
+          className="px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xl flex items-center gap-1.5 bg-black/50 hover:bg-black/70 border-white/10 text-zinc-300 hover:text-white backdrop-blur-md cursor-pointer transition-all"
+          title="Settings, Custom Space Layouts & Backup"
+        >
+          <Settings className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="hidden sm:inline">Settings</span>
+        </button>
+
         {/* Auto-play Media Setting Button */}
         <button
           type="button"
@@ -597,6 +1005,7 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
       {/* Floating Bottom Center Dock of Square Icons */}
       <SpaceDock
         onSpawnElement={(type, clientX, clientY) => handleSpawnElement(type, clientX, clientY)}
+        onOpenMediaModal={() => setIsMediaModalOpen(true)}
         onOpenBackgroundCustomizer={() => setIsBgModalOpen(true)}
         isViewMode={isViewMode}
         onToggleViewMode={() => setIsViewMode(!isViewMode)}
@@ -605,6 +1014,10 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
         elementCount={elements.length}
         isAutoPlayMedia={isAutoPlayMedia}
         onToggleAutoPlayMedia={handleToggleAutoplayMedia}
+        onOpenSettings={() => {
+          uiSound.playClick();
+          onOpenSettings?.('space-layouts');
+        }}
       />
 
       {/* Properties Inspector Panel */}
@@ -629,6 +1042,14 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate }) => {
         onClose={() => setIsBgModalOpen(false)}
         backgroundConfig={backgroundConfig}
         onUpdate={(updated) => setBackgroundConfig((prev) => ({ ...prev, ...updated }))}
+      />
+
+      {/* Space Media Modal (Load Local Video, Direct Web Address, or Custom Frame Photo) */}
+      <SpaceMediaModal
+        isOpen={isMediaModalOpen}
+        onClose={() => setIsMediaModalOpen(false)}
+        onAddVideo={handleAddVideoFromModal}
+        onAddImage={handleAddImageFromModal}
       />
 
       {/* Interactive Action Toast */}
