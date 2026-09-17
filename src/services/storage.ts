@@ -1480,6 +1480,17 @@ export const storage = {
   importAllData(jsonStr: string): boolean {
     try {
       const data = JSON.parse(jsonStr);
+
+      // Check if user imported a Space Layout array or single Space layout file
+      if (Array.isArray(data) && data.length > 0 && (data[0]?.elements || data[0]?.background)) {
+        this.importSpaceLayouts(data);
+        return true;
+      }
+      if (data && data.name && Array.isArray(data.elements)) {
+        this.importSpaceLayouts([data]);
+        return true;
+      }
+
       if (data.theme) this.saveTheme(data.theme);
       if (data.startConfig) this.saveStartPageConfig(data.startConfig);
       if (data.widgets) this.saveWidgets(data.widgets);
@@ -1545,7 +1556,7 @@ export const storage = {
   getActivePage(): PageId {
     try {
       const p = localStorage.getItem(STORAGE_KEYS.ACTIVE_PAGE) as PageId;
-      if (p === 'start' || p === 'dashboard' || p === 'writer') {
+      if (p === 'start' || p === 'dashboard' || p === 'writer' || p === 'space') {
         return p;
       }
       return 'start';
@@ -1758,14 +1769,18 @@ export const storage = {
   getSpaceElements(): SpaceElement[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SPACE_ELEMENTS);
-      if (data) {
+      if (data !== null) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Storage read failed for space elements', e);
     }
-    // Default to empty array for an empty flexible creative canvas viewport as requested
+    // If not stored yet (first time load on published website), seed from the initial active layout preset
+    const defaultLayouts = this.getSavedSpaceLayouts();
+    if (defaultLayouts.length > 0 && defaultLayouts[0]?.elements && defaultLayouts[0].elements.length > 0) {
+      return JSON.parse(JSON.stringify(defaultLayouts[0].elements));
+    }
     return [];
   },
 
@@ -1795,11 +1810,15 @@ export const storage = {
   getSpaceBackground(): SpaceBackgroundConfig {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SPACE_BACKGROUND);
-      if (data) {
+      if (data !== null) {
         return { ...DEFAULT_SPACE_BACKGROUND, ...JSON.parse(data) };
       }
     } catch (e) {
       console.warn('Storage read failed for space background', e);
+    }
+    const defaultLayouts = this.getSavedSpaceLayouts();
+    if (defaultLayouts.length > 0 && defaultLayouts[0]?.background) {
+      return { ...defaultLayouts[0].background };
     }
     return DEFAULT_SPACE_BACKGROUND;
   },
@@ -1950,6 +1969,106 @@ export const storage = {
     } catch (e) {
       console.warn('Failed to delete space layout', e);
       return false;
+    }
+  },
+
+  exportSpaceLayouts(): string {
+    const layouts = this.getSavedSpaceLayouts();
+    return JSON.stringify(layouts, null, 2);
+  },
+
+  exportSingleSpaceLayout(id: string): string | null {
+    const layouts = this.getSavedSpaceLayouts();
+    const found = layouts.find((l) => l.id === id);
+    if (!found) return null;
+    return JSON.stringify(found, null, 2);
+  },
+
+  importSpaceLayouts(
+    jsonOrData: string | SpaceLayout[] | { spaceSavedLayouts?: SpaceLayout[] },
+    mode: 'merge' | 'replace' = 'merge'
+  ): { success: boolean; count: number; error?: string } {
+    try {
+      const parsed: unknown = typeof jsonOrData === 'string' ? JSON.parse(jsonOrData) : jsonOrData;
+      let list: SpaceLayout[] = [];
+
+      if (Array.isArray(parsed)) {
+        list = parsed as SpaceLayout[];
+      } else if (parsed && typeof parsed === 'object') {
+        const obj = parsed as Record<string, unknown>;
+        if (Array.isArray(obj.spaceSavedLayouts)) {
+          list = obj.spaceSavedLayouts as SpaceLayout[];
+        } else if (obj.id && Array.isArray(obj.elements)) {
+          list = [obj as unknown as SpaceLayout];
+        }
+      }
+
+      if (!Array.isArray(list) || list.length === 0) {
+        return { success: false, count: 0, error: 'No valid layouts found in file or text.' };
+      }
+
+      const validLayouts: SpaceLayout[] = list
+        .filter((item): item is SpaceLayout => Boolean(item && typeof item === 'object' && item.name && Array.isArray(item.elements)))
+        .map((item) => ({
+          id: item.id || `layout-custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          name: String(item.name).trim() || 'Imported Layout',
+          description: item.description ? String(item.description).trim() : undefined,
+          elements: Array.isArray(item.elements) ? item.elements : [],
+          background: item.background || DEFAULT_SPACE_BACKGROUND,
+          createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+          updatedAt: Date.now(),
+          isPreset: Boolean(item.isPreset),
+        }));
+
+      if (validLayouts.length === 0) {
+        return { success: false, count: 0, error: 'Data does not match Space Layout format.' };
+      }
+
+      let finalLayouts: SpaceLayout[];
+      if (mode === 'replace') {
+        // Keep standard presets if not present, then add new
+        finalLayouts = validLayouts;
+      } else {
+        const existing = this.getSavedSpaceLayouts();
+        const map = new Map<string, SpaceLayout>();
+        existing.forEach((l) => map.set(l.id, l));
+        validLayouts.forEach((l) => map.set(l.id, l));
+        finalLayouts = Array.from(map.values());
+      }
+
+      localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(finalLayouts));
+      if (validLayouts[0]) {
+        this.setActiveSpaceLayoutId(validLayouts[0].id);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('space-layouts-updated', {
+            detail: { action: 'import', count: validLayouts.length },
+          })
+        );
+      }
+
+      return { success: true, count: validLayouts.length };
+    } catch (err: unknown) {
+      console.error('Failed to import space layouts', err);
+      return { success: false, count: 0, error: err instanceof Error ? err.message : 'Invalid JSON file.' };
+    }
+  },
+
+  resetSpaceLayoutsToDefaults(): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SPACE_SAVED_LAYOUTS, JSON.stringify(DEFAULT_SPACE_LAYOUTS));
+      this.setActiveSpaceLayoutId(DEFAULT_SPACE_LAYOUTS[0]?.id || null);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('space-layouts-updated', {
+            detail: { action: 'reset' },
+          })
+        );
+      }
+    } catch (e) {
+      console.warn('Failed to reset space layouts', e);
     }
   },
 

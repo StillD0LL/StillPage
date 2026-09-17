@@ -100,6 +100,7 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
 
   // 7c. Presets & Custom Layouts Modal
   const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
+  const [layoutModalTab, setLayoutModalTab] = useState<'browse' | 'save' | 'sync'>('browse');
 
   // 8. Action Feedback Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -189,13 +190,19 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
         background: { ...backgroundConfig },
         isPreset: false,
       };
-      storage.saveSpaceLayout(newLayout);
+      const saved = storage.saveSpaceLayout(newLayout);
+      if (!saved) {
+        setToastMessage(`Storage limit reached! Try reducing large pasted photos.`);
+        setTimeout(() => setToastMessage(null), 4000);
+        return false;
+      }
       const updated = storage.getSavedSpaceLayouts();
       setSavedLayouts(updated);
       setActiveLayoutId(newLayout.id);
       storage.setActiveSpaceLayoutId(newLayout.id);
-      setToastMessage(`Custom layout "${name}" with media saved!`);
+      setToastMessage(`Custom layout "${name}" saved!`);
       setTimeout(() => setToastMessage(null), 3500);
+      return true;
     },
     [elements, backgroundConfig]
   );
@@ -853,6 +860,7 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
             type="button"
             onClick={() => {
               uiSound.playClick();
+              setLayoutModalTab('browse');
               setIsLayoutModalOpen(true);
             }}
             className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg hover:bg-white/10 text-zinc-200 hover:text-white transition-colors cursor-pointer"
@@ -880,12 +888,26 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
             type="button"
             onClick={() => {
               uiSound.playClick();
+              setLayoutModalTab('save');
               setIsLayoutModalOpen(true);
             }}
             className="ml-1 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/30 text-[10px] font-semibold transition-colors cursor-pointer"
             title="Save current canvas layout to presets"
           >
             + Save
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              uiSound.playClick();
+              setLayoutModalTab('sync');
+              setIsLayoutModalOpen(true);
+            }}
+            className="px-1.5 py-0.5 rounded hover:bg-white/10 text-zinc-400 hover:text-amber-300 transition-colors cursor-pointer text-[10px]"
+            title="Sync presets between Gemini Studio and published website"
+          >
+            Sync
           </button>
         </div>
       </div>
@@ -897,6 +919,7 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
           type="button"
           onClick={() => {
             uiSound.playClick();
+            setLayoutModalTab('browse');
             setIsLayoutModalOpen(true);
           }}
           className="px-3 py-1.5 rounded-xl text-xs font-semibold border shadow-xl flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300 hover:text-amber-200 backdrop-blur-md cursor-pointer transition-all"
@@ -1142,9 +1165,18 @@ export const SpacePage: React.FC<SpacePageProps> = ({ onNavigate, onOpenSettings
         activeLayoutId={activeLayoutId}
         currentElements={elements}
         currentBackground={backgroundConfig}
+        initialTab={layoutModalTab}
         onSaveLayout={handleSaveCurrentLayout}
         onLoadLayout={handleLoadLayout}
         onDeleteLayout={handleDeleteLayout}
+        onImportLayouts={(count) => {
+          const updated = storage.getSavedSpaceLayouts();
+          setSavedLayouts(updated);
+          setActiveLayoutId(storage.getActiveSpaceLayoutId());
+          if (count > 0) {
+            setToastMessage(`Imported ${count} layout${count === 1 ? '' : 's'}!`);
+          }
+        }}
       />
 
       {/* Interactive Action Toast */}
